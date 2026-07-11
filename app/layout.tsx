@@ -11,25 +11,25 @@ const geistMono = Geist_Mono({
 })
 
 export const metadata: Metadata = {
-  title: 'Soldier Record Management System',
-  description: 'Manage and review military personnel records',
+  title: 'Hệ thống quản lý thông tin Quân đội',
+  description: 'Hiển thị và điều chỉnh thông tin của toàn Quân nhân trong Sư đoàn 5',
   generator: 'v0.app',
   icons: {
     icon: [
       {
-        url: '/icon-light-32x32.png',
+        url: '/avatarqlqdtvc.png',
         media: '(prefers-color-scheme: light)',
       },
       {
-        url: '/icon-dark-32x32.png',
+        url: '/avatarqlqdtvc.png',
         media: '(prefers-color-scheme: dark)',
       },
       {
-        url: '/icon.svg',
+        url: '/avatarqlqdtvc.png',
         type: 'image/svg+xml',
       },
     ],
-    apple: '/apple-icon.png',
+    apple: '/avatarqlqdtvc.png',
   },
 }
 

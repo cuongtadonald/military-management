@@ -62,16 +62,16 @@ export function SoldierForm({ open, onClose, onSubmit, initialData }: SoldierFor
               label="Họ và tên"
               rules={[{ required: true, message: "Hãy điền đầy đủ Họ và Tên!" }]}
             >
-              <Input placeholder="e.g., John Doe" />
+              <Input placeholder="vd: Tạ Văn Cường" />
             </Form.Item>
           </Col>
           <Col xs={24} sm={12}>
             <Form.Item
               name="militaryId"
               label="Mã quân đội"
-              rules={[{ required: true, message: "Please input military ID!" }]}
+              rules={[{ required: true, message: "Hãy điền mã quân nhân" }]}
             >
-              <Input placeholder="e.g., MIL-123456" />
+              <Input placeholder="vd: 123456" />
             </Form.Item>
           </Col>
         </Row>
