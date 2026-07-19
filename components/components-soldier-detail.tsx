@@ -33,12 +33,10 @@ import type { Soldier, SoldierRecord } from "@/lib/soldiers"
 
 const { Content } = Layout
 
-// Nhận prop là 'soldier' và cho phép nó có thể là undefined để xử lý lỗi an toàn
 export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
   const router = useRouter()
   const { message } = App.useApp()
 
-  // 1. Nếu không có dữ liệu, hiển thị màn hình 404 thay vì để app bị crash
   if (!soldier) {
     return (
       <Layout style={{ minHeight: "100vh" }}>
@@ -59,16 +57,13 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
     )
   }
 
-  // 2. Sử dụng state để quản lý dữ liệu, giúp giao diện cập nhật ngay khi sửa
   const [currentSoldier, setCurrentSoldier] = useState<Soldier>(soldier)
+  const [confirmOpen, setConfirmOpen] = useState(false)
+  const [formOpen, setFormOpen] = useState(false)
 
-  // Cập nhật state nếu prop soldier thay đổi (ví dụ: chuyển đổi giữa các ID khác nhau)
   useEffect(() => {
     setCurrentSoldier(soldier)
   }, [soldier])
-
-  const [confirmOpen, setConfirmOpen] = useState(false)
-  const [formOpen, setFormOpen] = useState(false)
 
   function confirmDelete() {
     message.success(`Đã xoá thông tin của ${currentSoldier.fullName}.`)
@@ -78,74 +73,28 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
 
   function handleFormSubmit(values: Partial<Soldier>) {
     const updatedSoldier = { ...currentSoldier, ...values } as Soldier
-    setCurrentSoldier(updatedSoldier) // Cập nhật state để giao diện thay đổi ngay lập tức
-    //message.success("Cập nhật thông tin chiến sĩ thành công!")
+    setCurrentSoldier(updatedSoldier)
+    message.success("Cập nhật thông tin chiến sĩ thành công!")
     setFormOpen(false)
   }
 
   const recordColumns: ColumnsType<SoldierRecord> = [
-    {
-      title: "Tiêu đề",
-      dataIndex: "title",
-      key: "title",
-      render: (t: string) => <span style={{ fontWeight: 600 }}>{t}</span>,
-    },
-    {
-      title: "Loại",
-      dataIndex: "type",
-      key: "type",
-      width: 130,
-      render: (t: string) => <RecordTypeTag type={t} />,
-    },
-    {
-      title: "Ngày",
-      dataIndex: "date",
-      key: "date",
-      width: 130,
-      sorter: (a, b) => a.date.localeCompare(b.date),
-    },
-    {
-      title: "Mô tả",
-      dataIndex: "description",
-      key: "description",
-      responsive: ["md"],
-    },
+    { title: "Tiêu đề", dataIndex: "title", key: "title", render: (t: string) => <span style={{ fontWeight: 600 }}>{t}</span> },
+    { title: "Loại", dataIndex: "type", key: "type", width: 130, render: (t: string) => <RecordTypeTag type={t} /> },
+    { title: "Ngày", dataIndex: "date", key: "date", width: 130, sorter: (a, b) => a.date.localeCompare(b.date) },
+    { title: "Mô tả", dataIndex: "description", key: "description", responsive: ["md"] },
   ]
 
   return (
     <Layout style={{ minHeight: "100vh" }}>
       <AppHeader />
       <Content style={{ padding: "16px", maxWidth: 1200, width: "100%", margin: "0 auto" }}>
-        <div
-          style={{
-            display: "flex",
-            flexWrap: "wrap",
-            gap: 12,
-            alignItems: "center",
-            justifyContent: "space-between",
-            marginBottom: 16,
-          }}
-        >
-          <Breadcrumb
-            items={[
-              { title: <a onClick={() => router.push("/")}>Trang chủ</a> },
-              { title: currentSoldier.fullName },
-            ]}
-          />
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 12, alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+          <Breadcrumb items={[{ title: <a onClick={() => router.push("/")}>Trang chủ</a> }, { title: currentSoldier.fullName }]} />
           <Space wrap>
-            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push("/")}>
-              Quay lại
-            </Button>
-            <Button
-              type="primary"
-              icon={<EditOutlined />}
-              onClick={() => setFormOpen(true)}
-            >
-              Sửa
-            </Button>
-            <Button danger icon={<DeleteOutlined />} onClick={() => setConfirmOpen(true)}>
-              Xoá
-            </Button>
+            <Button icon={<ArrowLeftOutlined />} onClick={() => router.push("/")}>Quay lại</Button>
+            <Button type="primary" icon={<EditOutlined />} onClick={() => setFormOpen(true)}>Sửa</Button>
+            <Button danger icon={<DeleteOutlined />} onClick={() => setConfirmOpen(true)}>Xoá</Button>
           </Space>
         </div>
 
@@ -153,24 +102,13 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
           <Col xs={24} md={8} lg={7}>
             <Card>
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center" }}>
-                <Avatar
-                  src={currentSoldier.avatar || "/placeholder.svg"}
-                  size={120}
-                  shape="square"
-                  alt={currentSoldier.fullName}
-                  style={{ borderRadius: 12, border: "3px solid #eef0e2" }}
-                />
-                <Typography.Title level={4} style={{ marginTop: 12, marginBottom: 4, color: "#3b4019" }}>
-                  {currentSoldier.fullName}
-                </Typography.Title>
-                <Typography.Text type="secondary">{currentSoldier.rank}</Typography.Text>
-                <div style={{ marginTop: 8 }}>
-                  <StatusTag status={currentSoldier.status} />
-                </div>
+                <Avatar src={currentSoldier.avatar || "/placeholder.svg"} size={120} shape="square" alt={currentSoldier.fullName} style={{ borderRadius: 12, border: "3px solid #eef0e2" }} />
+                <Typography.Title level={4} style={{ marginTop: 12, marginBottom: 4, color: "#3b4019" }}>{currentSoldier.fullName}</Typography.Title>
+                <Typography.Text type="secondary" style={{ fontSize: 16, fontWeight: 600 }}>{currentSoldier.rank.split(" > ").pop()}</Typography.Text>
+                <div style={{ marginTop: 8 }}><StatusTag status={currentSoldier.status} /></div>
                 <div style={{ marginTop: 16, width: "100%", textAlign: "left" }}>
                   <Descriptions column={1} size="small">
                     <Descriptions.Item label="Mã chiến sĩ">{currentSoldier.id}</Descriptions.Item>
-                    <Descriptions.Item label="Số ID quân đội">{currentSoldier.militaryId}</Descriptions.Item>
                     <Descriptions.Item label="Đơn vị">{currentSoldier.unit}</Descriptions.Item>
                     <Descriptions.Item label="Chức vụ">{currentSoldier.position}</Descriptions.Item>
                   </Descriptions>
@@ -181,6 +119,8 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
 
           <Col xs={24} md={16} lg={17}>
             <Space orientation="vertical" size={16} style={{ width: "100%" }}>
+              
+              {/* ĐÃ SỬA: 8 ô span=1 + 1 ô span=2 = 10 (chia hết cho 2) */}
               <Card title="Thông tin cá nhân">
                 <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
                   <Descriptions.Item label="Họ và tên">{currentSoldier.fullName}</Descriptions.Item>
@@ -191,16 +131,14 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
                   <Descriptions.Item label="Dân tộc">{currentSoldier.ethnicity}</Descriptions.Item>
                   <Descriptions.Item label="Tôn giáo">{currentSoldier.religion}</Descriptions.Item>
                   <Descriptions.Item label="Số điện thoại">{currentSoldier.phone}</Descriptions.Item>
-                  <Descriptions.Item label="Email">{currentSoldier.email}</Descriptions.Item>
-                  <Descriptions.Item label="Địa chỉ" span={2}>
-                    {currentSoldier.address}
-                  </Descriptions.Item>
+                  <Descriptions.Item label="Địa chỉ" span={2}>{currentSoldier.address}</Descriptions.Item>
                 </Descriptions>
               </Card>
 
+              {/* ĐÃ SỬA: 8 ô span=1 + 1 ô span=2 (Trạng thái) = 10 (chia hết cho 2) */}
               <Card title="Thông tin quân sự">
                 <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
-                  <Descriptions.Item label="Cấp bậc">{currentSoldier.rank}</Descriptions.Item>
+                  <Descriptions.Item label="Cấp bậc">{currentSoldier.rank.split(" > ").pop()}</Descriptions.Item>
                   <Descriptions.Item label="Đơn vị">{currentSoldier.unit}</Descriptions.Item>
                   <Descriptions.Item label="Chức vụ">{currentSoldier.position}</Descriptions.Item>
                   <Descriptions.Item label="Chuyên môn">{currentSoldier.specialty}</Descriptions.Item>
@@ -208,22 +146,23 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
                   <Descriptions.Item label="Nhóm máu">{currentSoldier.bloodType}</Descriptions.Item>
                   <Descriptions.Item label="Chính trị">{currentSoldier.politicalStatus}</Descriptions.Item>
                   <Descriptions.Item label="Trình độ">{currentSoldier.education}</Descriptions.Item>
-                  <Descriptions.Item label="Trạng thái">
+                  <Descriptions.Item label="Trạng thái" span={2}>
                     <StatusTag status={currentSoldier.status} />
                   </Descriptions.Item>
                 </Descriptions>
               </Card>
 
+              <Card title="Thông tin Gia đình & Sức khỏe">
+                <Descriptions column={{ xs: 1, sm: 2 }} size="small" bordered>
+                  <Descriptions.Item label="Tình trạng hôn nhân">{currentSoldier.maritalStatus}</Descriptions.Item>
+                  <Descriptions.Item label="Sức khỏe">{currentSoldier.healthStatus}</Descriptions.Item>
+                  <Descriptions.Item label="Thông tin gia đình" span={2}>{currentSoldier.familyInfo}</Descriptions.Item>
+                </Descriptions>
+              </Card>
+
               <Card title="Hồ sơ đính kèm">
                 {currentSoldier.records.length ? (
-                  <Table<SoldierRecord>
-                    rowKey="id"
-                    columns={recordColumns}
-                    dataSource={currentSoldier.records}
-                    pagination={false}
-                    scroll={{ x: 480 }}
-                    size="small"
-                  />
+                  <Table<SoldierRecord> rowKey="id" columns={recordColumns} dataSource={currentSoldier.records} pagination={false} scroll={{ x: 480 }} size="small" />
                 ) : (
                   <Empty description="Chưa có hồ sơ đính kèm" />
                 )}
@@ -233,34 +172,11 @@ export function SoldierDetail({ soldier }: { soldier: Soldier | undefined }) {
         </Row>
       </Content>
 
-      {/* Modal xác nhận xoá */}
-      <Modal
-        open={confirmOpen}
-        title={
-          <Space>
-            <ExclamationCircleFilled style={{ color: "#cf1322" }} />
-            Xác nhận xoá thông tin
-          </Space>
-        }
-        okText="Xoá"
-        okButtonProps={{ danger: true }}
-        cancelText="Huỷ"
-        onOk={confirmDelete}
-        onCancel={() => setConfirmOpen(false)}
-      >
-        <Typography.Paragraph style={{ marginBottom: 0 }}>
-          Bạn có chắc chắn muốn xoá thông tin của chiến sĩ <strong>{currentSoldier.fullName}</strong> (
-          {currentSoldier.militaryId})? Hành động này không thể hoàn tác.
-        </Typography.Paragraph>
+      <Modal open={confirmOpen} title={<Space><ExclamationCircleFilled style={{ color: "#cf1322" }} />Xác nhận xoá thông tin</Space>} okText="Xoá" okButtonProps={{ danger: true }} cancelText="Huỷ" onOk={confirmDelete} onCancel={() => setConfirmOpen(false)}>
+        <Typography.Paragraph style={{ marginBottom: 0 }}>Bạn có chắc chắn muốn xoá thông tin của chiến sĩ <strong>{currentSoldier.fullName}</strong>? Hành động này không thể hoàn tác.</Typography.Paragraph>
       </Modal>
 
-      {/* Modal Form Sửa */}
-      <SoldierForm
-        open={formOpen}
-        onClose={() => setFormOpen(false)}
-        onSubmit={handleFormSubmit}
-        initialData={currentSoldier}
-      />
+      <SoldierForm open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleFormSubmit} initialData={currentSoldier} />
     </Layout>
   )
 }

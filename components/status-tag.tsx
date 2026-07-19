@@ -1,31 +1,37 @@
+"use client"
+
 import { Tag } from "antd"
-import type { Soldier } from "@/lib/soldiers"
 
-// 1. Bản đồ màu sắc (giữ nguyên giá trị tiếng Anh để logic không đổi)
-const statusColors: Record<Soldier["status"], string> = {
-  Active: "green",
-  "On Leave": "gold",
-  Reserve: "blue",
-  Discharged: "default",
+// Hỗ trợ cả tiếng Việt và tiếng Anh
+const statusConfig: Record<string, { color: string; label: string }> = {
+  // Tiếng Việt (từ database)
+  "Đang phục vụ": { color: "green", label: "Đang phục vụ" },
+  "Điều chuyển": { color: "blue", label: "Điều chuyển" },
+  "Nghỉ hưu": { color: "orange", label: "Nghỉ hưu" },
+  "Xuất ngũ": { color: "default", label: "Xuất ngũ" },
+  
+  // Tiếng Anh (để tương thích ngược)
+  "Active": { color: "green", label: "Đang phục vụ" },
+  "On Leave": { color: "gold", label: "Đang nghỉ phép" },
+  "Reserve": { color: "blue", label: "Dự bị" },
+  "Discharged": { color: "default", label: "Xuất ngũ" },
 }
 
-// 2. Bản đồ nhãn hiển thị tiếng Việt
-const statusLabels: Record<Soldier["status"], string> = {
-  Active: "Đang tại ngũ",
-  "On Leave": "Đang nghỉ phép",
-  Reserve: "Dự bị",
-  Discharged: "Đã xuất ngũ",
+interface StatusTagProps {
+  status: string
 }
 
-export function StatusTag({ status }: { status: Soldier["status"] }) {
+export function StatusTag({ status }: StatusTagProps) {
+  const config = statusConfig[status] || { color: "default", label: status }
+  
   return (
-    <Tag color={statusColors[status]} style={{ marginInlineEnd: 0 }}>
-      {statusLabels[status]}
+    <Tag color={config.color} style={{ marginInlineEnd: 0 }}>
+      {config.label}
     </Tag>
   )
 }
 
-// 3. Bản đồ màu sắc cho loại hồ sơ
+// RecordTypeTag giữ nguyên
 const recordColors: Record<string, string> = {
   Award: "gold",
   Discipline: "red",
@@ -34,7 +40,6 @@ const recordColors: Record<string, string> = {
   Document: "default",
 }
 
-// 4. Bản đồ nhãn hiển thị tiếng Việt cho loại hồ sơ
 const recordLabels: Record<string, string> = {
   Award: "Khen thưởng",
   Discipline: "Kỷ luật",
