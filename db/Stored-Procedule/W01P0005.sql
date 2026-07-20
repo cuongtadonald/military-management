@@ -55,7 +55,7 @@ BEGIN
             CH.TotalSoldier,
             CH.ChangeReason,
             U.FullName AS ChangedByName,
-            OU.UnitName,
+            OU.FullPathName,
             CH.Description
         FROM ChangeHistory CH WITH(NOLOCK)
         INNER JOIN [User] U WITH(NOLOCK)

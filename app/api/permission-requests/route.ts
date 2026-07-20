@@ -3,10 +3,62 @@ import { getPool } from '@/lib/db'
 import sql from 'mssql'
 import { createChangeHistory, ensureAuditTables, FEATURE_LABELS } from '@/lib/audit'
 
-const ALL_PERMISSION_FEATURES = ['canCreate', 'canEdit', 'canDelete', 'canExport', 'canImport']
+const ALL_PERMISSION_FEATURES = ['canCreate', 'canEdit', 'canDelete', 'canExport', 'canImport', 'canImportExport']
+const REQUEST_STATUS = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+} as const
 
 function makeRequestId() {
-  return `PR-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`
+  // Keep ID <= 20 chars because some existing DB schemas define
+  // ChangeHistory.RequestID as VARCHAR(20).
+  return `PR${Date.now().toString(36)}${Math.random().toString(36).slice(2, 7)}`.toUpperCase()
+}
+
+async function ensurePermissionRequestStatuses(pool: sql.ConnectionPool) {
+  await pool.request().query(`
+    IF OBJECT_ID(N'dbo.Status', N'U') IS NOT NULL
+    BEGIN
+      DECLARE @HasStatusType BIT = CASE WHEN COL_LENGTH('dbo.Status', 'StatusType') IS NULL THEN 0 ELSE 1 END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Pending')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Pending', @StatusName = N'Chờ duyệt', @StatusType = 'PERMISSION_REQUEST', @Description = N'Chờ duyệt'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Pending', N'Chờ duyệt', N'Chờ duyệt')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Approved')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Approved', @StatusName = N'Đã duyệt', @StatusType = 'PERMISSION_REQUEST', @Description = N'Đã duyệt'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Approved', N'Đã duyệt', N'Đã duyệt')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Rejected')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Rejected', @StatusName = N'Đã từ chối', @StatusType = 'PERMISSION_REQUEST', @Description = N'Đã từ chối'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Rejected', N'Đã từ chối', N'Đã từ chối')
+      END
+    END
+  `)
 }
 
 export async function GET(request: NextRequest) {
@@ -51,6 +103,19 @@ export async function POST(request: NextRequest) {
 
     const pool = await getPool()
     await ensureAuditTables(pool)
+    await ensurePermissionRequestStatuses(pool)
+
+    const requesterResult = await pool.request()
+      .input('RequestBy', sql.VarChar, requestBy)
+      .query(`
+        SELECT TOP 1 UserID
+        FROM [User] WITH(NOLOCK)
+        WHERE UserID = @RequestBy
+      `)
+
+    if (requesterResult.recordset.length === 0) {
+      return NextResponse.json({ success: false, message: 'Không tìm thấy người gửi yêu cầu' }, { status: 404 })
+    }
 
     const requestId = makeRequestId()
     const requestTitle = title || 'Yêu cầu mở tất cả quyền chức năng'
@@ -66,6 +131,7 @@ export async function POST(request: NextRequest) {
       .input('Title', sql.NVarChar, requestTitle)
       .input('Content', sql.NVarChar, JSON.stringify(contentData))
       .input('RequestBy', sql.VarChar, requestBy)
+      .input('StatusID', sql.VarChar, REQUEST_STATUS.pending)
       .input('Description', sql.NVarChar, requestDescription)
       .input('ExpiredDate', sql.DateTime, expiredDate || null)
       .query(`
@@ -73,27 +139,31 @@ export async function POST(request: NextRequest) {
           RequestID, Title, Content, RequestBy, StatusID, RequestDate,
           Description, ExpiredDate
         ) VALUES (
-          @RequestID, @Title, @Content, @RequestBy, 'Pending', GETDATE(),
+          @RequestID, @Title, @Content, @RequestBy, @StatusID, GETDATE(),
           @Description, @ExpiredDate
         )
       `)
 
-    await createChangeHistory({
-      pool,
-      requestId,
-      changedBy: requestBy,
-      changeType: 'REQUEST',
-      changeReason: requestDescription,
-      description: requestTitle,
-      totalSoldier: 0,
-      details: ALL_PERMISSION_FEATURES.map((code) => ({
-        soldierId: null,
-        fieldName: code,
-        fieldDisplayName: FEATURE_LABELS[code] || code,
-        oldValue: false,
-        newValue: 'Pending',
-      })),
-    })
+    try {
+      await createChangeHistory({
+        pool,
+        requestId,
+        changedBy: requestBy,
+        changeType: 'REQUEST',
+        changeReason: requestDescription,
+        description: requestTitle,
+        totalSoldier: 0,
+        details: ALL_PERMISSION_FEATURES.map((code) => ({
+          soldierId: null,
+          fieldName: code,
+          fieldDisplayName: FEATURE_LABELS[code] || code,
+          oldValue: false,
+          newValue: REQUEST_STATUS.pending,
+        })),
+      })
+    } catch (auditError) {
+      console.error('Đã tạo yêu cầu nhưng lỗi khi ghi lịch sử mở quyền:', auditError)
+    }
 
     return NextResponse.json({ success: true, message: 'Đã gửi yêu cầu mở quyền', data: { RequestID: requestId } })
   } catch (error) {

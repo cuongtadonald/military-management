@@ -3,7 +3,65 @@ import { getPool } from '@/lib/db'
 import sql from 'mssql'
 import { createChangeHistory, ensureAuditTables, FEATURE_LABELS, setUserPermission } from '@/lib/audit'
 
-const ALL_PERMISSION_FEATURES = ['canCreate', 'canEdit', 'canDelete', 'canExport', 'canImport']
+const ALL_PERMISSION_FEATURES = ['canCreate', 'canEdit', 'canDelete', 'canExport', 'canImport', 'canImportExport']
+const REQUEST_STATUS = {
+  pending: 'Pending',
+  approved: 'Approved',
+  rejected: 'Rejected',
+} as const
+
+function normalizeRequestStatus(status?: string | null) {
+  const value = String(status || '').trim().toLowerCase()
+  if (value === 'pending') return REQUEST_STATUS.pending
+  if (value === 'approved') return REQUEST_STATUS.approved
+  if (value === 'rejected') return REQUEST_STATUS.rejected
+  return status || ''
+}
+
+async function ensurePermissionRequestStatuses(pool: sql.ConnectionPool) {
+  await pool.request().query(`
+    IF OBJECT_ID(N'dbo.Status', N'U') IS NOT NULL
+    BEGIN
+      DECLARE @HasStatusType BIT = CASE WHEN COL_LENGTH('dbo.Status', 'StatusType') IS NULL THEN 0 ELSE 1 END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Pending')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Pending', @StatusName = N'Chờ duyệt', @StatusType = 'PERMISSION_REQUEST', @Description = N'Chờ duyệt'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Pending', N'Chờ duyệt', N'Chờ duyệt')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Approved')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Approved', @StatusName = N'Đã duyệt', @StatusType = 'PERMISSION_REQUEST', @Description = N'Đã duyệt'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Approved', N'Đã duyệt', N'Đã duyệt')
+      END
+
+      IF NOT EXISTS (SELECT 1 FROM dbo.Status WHERE StatusID = 'Rejected')
+      BEGIN
+        IF @HasStatusType = 1
+          EXEC sp_executesql
+            N'INSERT INTO dbo.Status (StatusID, StatusName, StatusType, Description) VALUES (@StatusID, @StatusName, @StatusType, @Description)',
+            N'@StatusID VARCHAR(50), @StatusName NVARCHAR(255), @StatusType VARCHAR(50), @Description NVARCHAR(500)',
+            @StatusID = 'Rejected', @StatusName = N'Đã từ chối', @StatusType = 'PERMISSION_REQUEST', @Description = N'Đã từ chối'
+        ELSE
+          INSERT INTO dbo.Status (StatusID, StatusName, Description)
+          VALUES ('Rejected', N'Đã từ chối', N'Đã từ chối')
+      END
+    END
+  `)
+}
 
 export async function GET(
   request: NextRequest,
@@ -47,6 +105,7 @@ export async function PUT(
 
     const pool = await getPool()
     await ensureAuditTables(pool)
+    await ensurePermissionRequestStatuses(pool)
 
     const requestResult = await pool.request()
       .input('RequestID', sql.VarChar, id)
@@ -71,7 +130,7 @@ export async function PUT(
     }
 
     const permissionRequest = requestResult.recordset[0]
-    if (permissionRequest.StatusID !== 'Pending') {
+    if (normalizeRequestStatus(permissionRequest.StatusID) !== REQUEST_STATUS.pending) {
       return NextResponse.json({ success: false, message: 'Yêu cầu đã được xử lý' }, { status: 400 })
     }
 
@@ -82,9 +141,11 @@ export async function PUT(
     }
 
     if (action === 'approve') {
+      const grantedPermissions: Record<string, boolean> = {}
       const changedDetails = []
       for (const code of ALL_PERMISSION_FEATURES) {
         const result = await setUserPermission(pool, approvedBy, permissionRequest.RequestBy, code, true)
+        grantedPermissions[code] = true
         changedDetails.push({
           soldierId: null,
           fieldName: code,
@@ -97,52 +158,67 @@ export async function PUT(
       await pool.request()
         .input('RequestID', sql.VarChar, id)
         .input('ApprovedBy', sql.VarChar, approvedBy)
+        .input('StatusID', sql.VarChar, REQUEST_STATUS.approved)
         .query(`
           UPDATE PermissionRequest
-          SET StatusID = 'Approved', ApprovedBy = @ApprovedBy, ApprovedDate = GETDATE(), RejectReason = NULL
+          SET StatusID = @StatusID, ApprovedBy = @ApprovedBy, ApprovedDate = GETDATE(), RejectReason = NULL
           WHERE RequestID = @RequestID
         `)
 
-      await createChangeHistory({
-        pool,
-        requestId: id,
-        changedBy: approvedBy,
-        changeType: 'APPROVE',
-        changeReason: `Phê duyệt yêu cầu mở tất cả quyền ${permissionRequest.Title}`,
-        description: `Mở tất cả quyền chức năng cho user ${permissionRequest.RequestBy}`,
-        totalSoldier: 0,
-        details: changedDetails,
-      })
+      try {
+        await createChangeHistory({
+          pool,
+          requestId: id,
+          changedBy: approvedBy,
+          changeType: 'APPROVE',
+          changeReason: `Phê duyệt yêu cầu mở tất cả quyền ${permissionRequest.Title}`,
+          description: `Mở tất cả quyền chức năng cho user ${permissionRequest.RequestBy}`,
+          totalSoldier: 0,
+          details: changedDetails,
+        })
+      } catch (auditError) {
+        console.error('Đã phê duyệt yêu cầu nhưng lỗi khi ghi lịch sử:', auditError)
+      }
 
-      return NextResponse.json({ success: true, message: 'Đã phê duyệt và mở tất cả quyền' })
+      return NextResponse.json({
+        success: true,
+        message: 'Đã phê duyệt và mở tất cả quyền',
+        affectedUserId: permissionRequest.RequestBy,
+        permissions: grantedPermissions,
+      })
     }
 
     await pool.request()
       .input('RequestID', sql.VarChar, id)
       .input('ApprovedBy', sql.VarChar, approvedBy)
+      .input('StatusID', sql.VarChar, REQUEST_STATUS.rejected)
       .input('RejectReason', sql.NVarChar, rejectReason || null)
       .query(`
         UPDATE PermissionRequest
-        SET StatusID = 'Rejected', ApprovedBy = @ApprovedBy, ApprovedDate = GETDATE(), RejectReason = @RejectReason
+        SET StatusID = @StatusID, ApprovedBy = @ApprovedBy, ApprovedDate = GETDATE(), RejectReason = @RejectReason
         WHERE RequestID = @RequestID
       `)
 
-    await createChangeHistory({
-      pool,
-      requestId: id,
-      changedBy: approvedBy,
-      changeType: 'REJECT',
-      changeReason: rejectReason || `Từ chối yêu cầu mở quyền ${permissionRequest.Title}`,
-      description: `Từ chối yêu cầu mở quyền của user ${permissionRequest.RequestBy}`,
-      totalSoldier: 0,
-      details: ALL_PERMISSION_FEATURES.map((code) => ({
-        soldierId: null,
-        fieldName: code,
-        fieldDisplayName: FEATURE_LABELS[code] || code,
-        oldValue: 'Pending',
-        newValue: 'Rejected',
-      })),
-    })
+    try {
+      await createChangeHistory({
+        pool,
+        requestId: id,
+        changedBy: approvedBy,
+        changeType: 'REJECT',
+        changeReason: rejectReason || `Từ chối yêu cầu mở quyền ${permissionRequest.Title}`,
+        description: `Từ chối yêu cầu mở quyền của user ${permissionRequest.RequestBy}`,
+        totalSoldier: 0,
+        details: ALL_PERMISSION_FEATURES.map((code) => ({
+          soldierId: null,
+          fieldName: code,
+          fieldDisplayName: FEATURE_LABELS[code] || code,
+          oldValue: REQUEST_STATUS.pending,
+          newValue: REQUEST_STATUS.rejected,
+        })),
+      })
+    } catch (auditError) {
+      console.error('Đã từ chối yêu cầu nhưng lỗi khi ghi lịch sử:', auditError)
+    }
 
     return NextResponse.json({ success: true, message: 'Đã từ chối yêu cầu' })
   } catch (error) {

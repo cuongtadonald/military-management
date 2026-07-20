@@ -55,7 +55,7 @@ BEGIN
 			CH.TotalSoldier,
 			CH.Description,
 			U.FullName AS ChangedByName,
-			OU.UnitName
+			OU.FullPathName
 		FROM ChangeHistory CH WITH(NOLOCK)
 			INNER JOIN [User] U WITH(NOLOCK)
 				ON CH.ChangedBy = U.UserID
@@ -69,6 +69,7 @@ BEGIN
 			S.FullName AS SoldierName,
 			S.CitizenID,
 			OU2.UnitName,
+			OU2.FullPathName,
 			R.RankName
 		FROM ChangeHistoryDetail CHD WITH(NOLOCK)
 			INNER JOIN ChangeHistory CH WITH(NOLOCK)

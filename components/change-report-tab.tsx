@@ -15,7 +15,7 @@ import {
   Typography,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { CheckCircleOutlined, CloseCircleOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
+import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
 import { useAuth } from "@/components/auth-provider"
 
 const { TextArea } = Input
@@ -52,6 +52,14 @@ const REQUEST_STATUS_LABELS: Record<string, string> = {
   Rejected: "Đã từ chối",
 }
 
+function normalizeRequestStatus(status?: string | null) {
+  const value = String(status || "").trim().toLowerCase()
+  if (value === "pending") return "Pending"
+  if (value === "approved") return "Approved"
+  if (value === "rejected") return "Rejected"
+  return status || ""
+}
+
 interface ChangeHistoryRow {
   ID: string
   ChangeHistoryID?: string
@@ -70,6 +78,8 @@ interface ChangeHistoryDetailRow {
   SoldierName?: string | null
   CitizenID?: string | null
   UnitName?: string | null
+  FullPathName?: string | null
+  UnitFullPath?: string | null
   RankName?: string | null
   FieldName: string
   FieldDisplayName?: string
@@ -119,6 +129,29 @@ function getRequestId(record: PermissionRequestRow) {
   return record.ID || record.RequestID || ""
 }
 
+function renderUnitHierarchy(unitFullPath?: string | null, unitName?: string | null) {
+  if (!unitFullPath) return unitName || "—"
+
+  const parts = unitFullPath.split(",").map((part) => part.trim()).filter(Boolean)
+  if (parts.length <= 1) return <Typography.Text>{unitName || unitFullPath}</Typography.Text>
+
+  const currentUnit = parts[parts.length - 1]
+  const parentUnits = parts.slice(0, -1).join(", ")
+
+  return (
+    <div>
+      {parentUnits && (
+        <Typography.Text style={{ fontSize: 11, color: "#8c8c8c", display: "block", lineHeight: 1.2 }}>
+          {parentUnits}
+        </Typography.Text>
+      )}
+      <Typography.Text style={{ fontWeight: 500, display: "block", lineHeight: 1.3 }}>
+        {unitName || currentUnit}
+      </Typography.Text>
+    </div>
+  )
+}
+
 export function ChangeReportTab() {
   const { message, modal } = App.useApp()
   const { user, hasPermission, refreshPermissions } = useAuth()
@@ -132,6 +165,7 @@ export function ChangeReportTab() {
   const [requestModalOpen, setRequestModalOpen] = useState(false)
   const [detailModalOpen, setDetailModalOpen] = useState(false)
   const [selectedHistory, setSelectedHistory] = useState<HistoryDetailResponse | null>(null)
+  const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null)
   const [form] = Form.useForm()
 
   const canReviewRequests = hasPermission("canApproveRequest") || (user?.permissionLevel ?? 99) < 3
@@ -246,6 +280,7 @@ export function ChangeReportTab() {
     if (!id) return
 
     try {
+      setReviewingRequestId(id)
       const response = await fetch(`/api/permission-requests/${id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
@@ -254,6 +289,30 @@ export function ChangeReportTab() {
       const result = await response.json()
       if (result.success) {
         message.success(result.message || "Đã xử lý yêu cầu")
+        if (action === "approve" && result.affectedUserId) {
+          const permissions = result.permissions || {
+            canCreate: true,
+            canEdit: true,
+            canDelete: true,
+            canExport: true,
+            canImport: true,
+            canImportExport: true,
+          }
+
+          if (typeof window !== "undefined" && "BroadcastChannel" in window) {
+            const channel = new BroadcastChannel("permission-updates")
+            channel.postMessage({
+              type: "permission_update",
+              userId: result.affectedUserId,
+              permissions,
+            })
+            channel.close()
+          }
+
+          window.dispatchEvent(new CustomEvent("permission_update", {
+            detail: { userId: result.affectedUserId, permissions },
+          }))
+        }
         await refreshPermissions()
         refreshAll()
       } else {
@@ -262,7 +321,30 @@ export function ChangeReportTab() {
     } catch (error) {
       console.error("Lỗi khi xét duyệt yêu cầu:", error)
       message.error("Lỗi khi xử lý yêu cầu")
+    } finally {
+      setReviewingRequestId(null)
     }
+  }
+
+  const handleApprove = (record: PermissionRequestRow) => {
+    modal.confirm({
+      title: "Xác nhận phê duyệt yêu cầu",
+      icon: <ExclamationCircleOutlined />,
+      content: (
+        <Space direction="vertical" size={4}>
+          <Typography.Text>Bạn có chắc chắn muốn phê duyệt yêu cầu mở quyền này?</Typography.Text>
+          <Typography.Text type="secondary">
+            Người yêu cầu: {record.RequestByName || "—"}
+          </Typography.Text>
+          <Typography.Text type="secondary">
+            Nội dung: {record.Title || record.Description || "Yêu cầu mở tất cả quyền chức năng"}
+          </Typography.Text>
+        </Space>
+      ),
+      okText: "Phê duyệt",
+      cancelText: "Huỷ",
+      onOk: () => reviewRequest(record, "approve"),
+    })
   }
 
   const handleReject = (record: PermissionRequestRow) => {
@@ -346,7 +428,14 @@ export function ChangeReportTab() {
       title: "Trạng thái",
       dataIndex: "StatusID",
       width: 130,
-      render: (status: string, record) => <Tag color={REQUEST_STATUS_COLORS[status] || "default"}>{record.StatusName || REQUEST_STATUS_LABELS[status] || status}</Tag>,
+      render: (status: string, record) => {
+        const normalizedStatus = normalizeRequestStatus(status)
+        return (
+          <Tag color={REQUEST_STATUS_COLORS[normalizedStatus] || "default"}>
+            {record.StatusName || REQUEST_STATUS_LABELS[normalizedStatus] || status}
+          </Tag>
+        )
+      },
     },
     {
       title: "Người yêu cầu",
@@ -375,17 +464,34 @@ export function ChangeReportTab() {
       title: "Xét duyệt",
       width: 190,
       render: (_, record) => {
-        const canReview = canReviewRequests && record.StatusID === "Pending"
+        const requestId = getRequestId(record)
+        const canReview = canReviewRequests && normalizeRequestStatus(record.StatusID) === "Pending"
         if (!canReview) return <Typography.Text type="secondary">—</Typography.Text>
         return (
           <Space>
-            <Button size="small" type="primary" icon={<CheckCircleOutlined />} onClick={() => reviewRequest(record, "approve")}>Duyệt</Button>
-            <Button size="small" danger icon={<CloseCircleOutlined />} onClick={() => handleReject(record)}>Từ chối</Button>
+            <Button
+              size="small"
+              type="primary"
+              icon={<CheckCircleOutlined />}
+              loading={reviewingRequestId === requestId}
+              onClick={() => handleApprove(record)}
+            >
+              Duyệt
+            </Button>
+            <Button
+              size="small"
+              danger
+              icon={<CloseCircleOutlined />}
+              loading={reviewingRequestId === requestId}
+              onClick={() => handleReject(record)}
+            >
+              Từ chối
+            </Button>
           </Space>
         )
       },
     },
-  ], [canReviewRequests])
+  ], [canReviewRequests, reviewingRequestId])
 
   return (
     <Card>
@@ -416,7 +522,7 @@ export function ChangeReportTab() {
           },
           {
             key: "permissionRequests",
-            label: `Yêu cầu mở quyền (${permissionRequests.filter((item) => item.StatusID === "Pending").length})`,
+            label: `Yêu cầu mở quyền (${permissionRequests.filter((item) => normalizeRequestStatus(item.StatusID) === "Pending").length})`,
             children: (
               <Table<PermissionRequestRow>
                 rowKey={(record) => getRequestId(record)}
@@ -453,13 +559,19 @@ export function ChangeReportTab() {
             loading={detailLoading}
             pagination={false}
             dataSource={selectedHistory?.details || []}
+            scroll={{ x: 1100 }}
             columns={[
-              { title: "Chiến sĩ", dataIndex: "SoldierName", width: 180, render: (value, record) => value || record.SoldierID || "—" },
-              { title: "CCCD", dataIndex: "CitizenID", width: 120, render: displayValue },
-              { title: "Đơn vị", dataIndex: "UnitName", width: 160, render: displayValue },
-              { title: "Trường", dataIndex: "FieldDisplayName", width: 180, render: (value, record) => value || record.FieldName },
-              { title: "Giá trị cũ", dataIndex: "OldValue", render: displayValue },
-              { title: "Giá trị mới", dataIndex: "NewValue", render: displayValue },
+              { title: "Mã quân nhân", dataIndex: "SoldierID", width: 130, render: displayValue },
+              { title: "Họ và tên", dataIndex: "SoldierName", width: 180, render: displayValue },
+              {
+                title: "Đơn vị",
+                key: "Unit",
+                width: 260,
+                render: (_, record) => renderUnitHierarchy(record.FullPathName || record.UnitFullPath, record.UnitName),
+              },
+              { title: "Trường thay đổi", dataIndex: "FieldDisplayName", width: 180, render: (value, record) => value || record.FieldName },
+              { title: "Thông tin cũ", dataIndex: "OldValue", width: 180, render: displayValue },
+              { title: "Thông tin mới", dataIndex: "NewValue", width: 180, render: displayValue },
             ]}
           />
         </Space>

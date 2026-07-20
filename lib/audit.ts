@@ -34,6 +34,10 @@ function makeId(prefix: string) {
   return `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 10)}`
 }
 
+function makeShortId(prefix: string) {
+  return `${prefix}${Date.now().toString(36)}${Math.random().toString(36).slice(2, 6)}`.toUpperCase()
+}
+
 function stringifyValue(value: unknown): string | null {
   if (value === undefined || value === null) return null
   if (value instanceof Date) return value.toISOString()
@@ -167,6 +171,24 @@ export async function getVisibleUserIds(pool: sql.ConnectionPool, userId: string
   return result.recordset.map((row: any) => row.UserID)
 }
 
+async function ensureUserFeaturePermissionTable(pool: sql.ConnectionPool) {
+  await pool.request().query(`
+    IF OBJECT_ID(N'dbo.UserFeaturePermission', N'U') IS NULL
+    BEGIN
+      CREATE TABLE dbo.UserFeaturePermission (
+        PermissionID VARCHAR(50) NOT NULL PRIMARY KEY,
+        GrantedByUserID VARCHAR(50) NOT NULL,
+        GrantedToUserID VARCHAR(50) NOT NULL,
+        FeatureCode VARCHAR(100) NOT NULL,
+        IsEnabled BIT NOT NULL DEFAULT 0,
+        GrantedDate DATETIME NOT NULL DEFAULT GETDATE(),
+        LastModifiedDate DATETIME NULL,
+        LastModifiedBy VARCHAR(50) NULL
+      )
+    END
+  `)
+}
+
 export async function setUserPermission(
   pool: sql.ConnectionPool,
   grantedByUserId: string,
@@ -174,6 +196,8 @@ export async function setUserPermission(
   featureCode: string,
   isEnabled: boolean,
 ) {
+  await ensureUserFeaturePermissionTable(pool)
+
   const checkResult = await pool.request()
     .input('grantedToUserId', sql.VarChar, grantedToUserId)
     .input('featureCode', sql.VarChar, featureCode)
@@ -202,7 +226,7 @@ export async function setUserPermission(
       `)
   } else {
     await pool.request()
-      .input('permissionId', sql.VarChar, makeId('PERM'))
+      .input('permissionId', sql.VarChar, makeShortId('PERM'))
       .input('grantedByUserId', sql.VarChar, grantedByUserId)
       .input('grantedToUserId', sql.VarChar, grantedToUserId)
       .input('featureCode', sql.VarChar, featureCode)
