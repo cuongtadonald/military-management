@@ -17,6 +17,10 @@ const statusConfig: Record<string, { color: string; label: string }> = {
   "Discharged": { color: "default", label: "Xuất ngũ" },
 }
 
+export const statusLabels: Record<string, string> = Object.fromEntries(
+  Object.entries(statusConfig).map(([status, config]) => [status, config.label])
+)
+
 interface StatusTagProps {
   status: string
 }

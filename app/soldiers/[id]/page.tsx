@@ -16,7 +16,8 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { App, Button, Card, Descriptions, Layout, Spin, Tag, Typography, Tabs, Empty, Row, Col, Avatar, Divider, Modal, Space, Tooltip } from "antd"
+import { App, Button, Card, Descriptions, Layout, Spin, Tag, Typography, Tabs, Empty, Row, Col, Avatar, Divider, Modal, Space, Tooltip, Table } from "antd"
+import type { ColumnsType } from "antd/es/table"
 import { ArrowLeftOutlined, UserOutlined, HistoryOutlined, TeamOutlined, EditOutlined, DeleteOutlined, ExclamationCircleFilled } from "@ant-design/icons"
 
 import { AppHeader } from "@/components/app-header"
@@ -83,6 +84,30 @@ interface FamilyMember {
   IsDependent: boolean
 }
 
+interface WorkProcess {
+  WorkProcessID: string
+  SoldierID?: string
+  FromDate?: string
+  ToDate?: string
+  WorkDescription?: string
+  RankID?: string
+  RankName?: string
+  PartyPosition?: string
+  Description?: string
+}
+
+interface TrainingProcess {
+  TrainingID: string
+  SoldierID?: string
+  SchoolName?: string
+  MajorName?: string
+  FromDate?: string
+  ToDate?: string
+  TrainingType?: string
+  Certificate?: string
+  Description?: string
+}
+
 // Interface cho User info
 interface UserInfo {
   userId: string
@@ -94,6 +119,8 @@ interface UserInfo {
 interface SoldierData {
   soldier: SoldierDetail
   family: FamilyMember[]
+  workProcesses: WorkProcess[]
+  trainingProcesses: TrainingProcess[]
 }
 
 // ============================================================
@@ -176,10 +203,12 @@ export default function SoldierDetailPage() {
       const result = await response.json()
 
       if (result.success) {
-        const { family, ...soldier } = result.data
+        const { family, workProcesses, trainingProcesses, ...soldier } = result.data
         setData({
           soldier,
           family: family || [],
+          workProcesses: workProcesses || [],
+          trainingProcesses: trainingProcesses || [],
         })
 
         // Load thông tin user tạo (nếu có)
@@ -273,7 +302,7 @@ export default function SoldierDetailPage() {
     )
   }
 
-  const { soldier, family } = data
+  const { soldier, family, workProcesses, trainingProcesses } = data
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -357,6 +386,25 @@ export default function SoldierDetailPage() {
     },
   }
 
+  const workProcessColumns: ColumnsType<WorkProcess> = [
+    { title: "Từ ngày", dataIndex: "FromDate", width: 120, render: (value) => value || "—" },
+    { title: "Đến ngày", dataIndex: "ToDate", width: 120, render: (value) => value || "—" },
+    { title: "Cấp bậc", dataIndex: "RankID", width: 140, render: (value, record) => record.RankName || value || "—" },
+    { title: "Chức vụ Đảng, đoàn thể", dataIndex: "PartyPosition", width: 220, render: (value) => value || "—" },
+    { title: "Chức vụ, đơn vị, binh chủng, chiến trường", dataIndex: "WorkDescription", width: 320, render: (value) => value || "—" },
+    { title: "Ghi chú", dataIndex: "Description", width: 220, render: (value) => value || "—" },
+  ]
+
+  const trainingProcessColumns: ColumnsType<TrainingProcess> = [
+    { title: "Tên trường đào tạo", dataIndex: "SchoolName", width: 220, render: (value) => value || "—" },
+    { title: "Ngành học/lớp học", dataIndex: "MajorName", width: 220, render: (value) => value || "—" },
+    { title: "Từ ngày", dataIndex: "FromDate", width: 120, render: (value) => value || "—" },
+    { title: "Đến ngày", dataIndex: "ToDate", width: 120, render: (value) => value || "—" },
+    { title: "Hình thức đào tạo", dataIndex: "TrainingType", width: 180, render: (value) => value || "—" },
+    { title: "Bằng cấp, chứng chỉ", dataIndex: "Certificate", width: 220, render: (value) => value || "—" },
+    { title: "Ghi chú", dataIndex: "Description", width: 220, render: (value) => value || "—" },
+  ]
+
   // ============================================================
   // TAB ITEMS
   // ============================================================
@@ -438,6 +486,36 @@ export default function SoldierDetailPage() {
                 ) : "—"}
               </Descriptions.Item>
             </Descriptions>
+          </div>
+
+          {/* ===== SECTION 5: QUÁ TRÌNH CÔNG TÁC ===== */}
+          <div>
+            <div style={sectionTitleStyle}>Quá trình công tác</div>
+            <Table<WorkProcess>
+              rowKey={(record, index) => record.WorkProcessID || `work-${index}`}
+              columns={workProcessColumns}
+              dataSource={workProcesses}
+              pagination={false}
+              size="small"
+              bordered
+              scroll={{ x: 1220 }}
+              locale={{ emptyText: "Chưa có quá trình công tác" }}
+            />
+          </div>
+
+          {/* ===== SECTION 6: QUÁ TRÌNH ĐÀO TẠO ===== */}
+          <div>
+            <div style={sectionTitleStyle}>Quá trình đào tạo</div>
+            <Table<TrainingProcess>
+              rowKey={(record, index) => record.TrainingID || `training-${index}`}
+              columns={trainingProcessColumns}
+              dataSource={trainingProcesses}
+              pagination={false}
+              size="small"
+              bordered
+              scroll={{ x: 1300 }}
+              locale={{ emptyText: "Chưa có quá trình đào tạo" }}
+            />
           </div>
         </div>
       ),
@@ -589,7 +667,11 @@ export default function SoldierDetailPage() {
       <SoldierForm
         open={soldierFormOpen}
         onClose={() => setSoldierFormOpen(false)}
-        soldier={data?.soldier}
+        soldier={data ? {
+          ...data.soldier,
+          workProcesses: data.workProcesses,
+          trainingProcesses: data.trainingProcesses,
+        } : null}
         onSuccess={handleFormSuccess}
       />
     </Layout>

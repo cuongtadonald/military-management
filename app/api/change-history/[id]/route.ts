@@ -22,11 +22,13 @@ export async function GET(
       .input('Mode', sql.TinyInt, 0)
       .execute('W01P0006')
 
+    const recordsets = result.recordsets as any[]
+
     return NextResponse.json({
       success: true,
       data: {
-        header: result.recordsets?.[0]?.[0] || null,
-        details: result.recordsets?.[1] || [],
+        header: recordsets?.[0]?.[0] || null,
+        details: recordsets?.[1] || [],
       },
     })
   } catch (error) {

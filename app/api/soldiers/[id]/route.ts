@@ -99,11 +99,25 @@ export async function GET(
       .input('Mode', sql.TinyInt, 1)
       .execute('W01P0003');
 
+    // Gọi SP W01P0003 Mode 3 - Quá trình công tác
+    const workProcessResult = await pool.request()
+      .input('SoldierID', sql.VarChar, id)
+      .input('Mode', sql.TinyInt, 3)
+      .execute('W01P0003');
+
+    // Gọi SP W01P0003 Mode 4 - Quá trình đào tạo
+    const trainingProcessResult = await pool.request()
+      .input('SoldierID', sql.VarChar, id)
+      .input('Mode', sql.TinyInt, 4)
+      .execute('W01P0003');
+
     return NextResponse.json({
       success: true,
       data: {
         ...soldierDetail,
         family: familyResult.recordset || [],
+        workProcesses: workProcessResult.recordset || [],
+        trainingProcesses: trainingProcessResult.recordset || [],
       },
     });
   } catch (error) {

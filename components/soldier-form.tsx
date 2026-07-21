@@ -26,6 +26,8 @@ interface SoldierFormProps {
   open: boolean
   onClose: () => void
   soldier?: any | null
+  initialData?: any | null
+  onSubmit?: (values: any) => void
   onSuccess?: () => void
 }
 
@@ -41,6 +43,27 @@ interface FamilyMember {
   IsDependent: boolean
   isNew?: boolean
   isDeleted?: boolean
+}
+
+interface WorkProcess {
+  WorkProcessID?: string
+  FromDate?: string
+  ToDate?: string
+  WorkDescription?: string
+  RankID?: string
+  PartyPosition?: string
+  Description?: string
+}
+
+interface TrainingProcess {
+  TrainingID?: string
+  SchoolName?: string
+  MajorName?: string
+  FromDate?: string
+  ToDate?: string
+  TrainingType?: string
+  Certificate?: string
+  Description?: string
 }
 
 // ============================================================
@@ -123,7 +146,8 @@ const RELATIONSHIP_OPTIONS = [
 // MAIN COMPONENT
 // ============================================================
 
-export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormProps) {
+export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, onSuccess }: SoldierFormProps) {
+  const soldier = soldierProp ?? initialData
   const { message } = App.useApp()
   const { user } = useAuth()
   const [form] = Form.useForm()
@@ -144,6 +168,8 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
   // State cho tab và thân nhân
   const [activeTab, setActiveTab] = useState("info")
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
+  const [workProcesses, setWorkProcesses] = useState<WorkProcess[]>([])
+  const [trainingProcesses, setTrainingProcesses] = useState<TrainingProcess[]>([])
   const [editingFamilyIndex, setEditingFamilyIndex] = useState<number | null>(null)
   
   // Modal popup cho sửa thân nhân
@@ -245,11 +271,16 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
           setSelectedProvinceId(soldier.ProvinceID)
         }
         
+        setWorkProcesses(Array.isArray(soldier.workProcesses) ? soldier.workProcesses : [])
+        setTrainingProcesses(Array.isArray(soldier.trainingProcesses) ? soldier.trainingProcesses : [])
         loadFamilyMembers()
+        loadProcessData()
       } else {
         // Mode Thêm - reset form
         form.resetFields()
         setFamilyMembers([])
+        setWorkProcesses([])
+        setTrainingProcesses([])
         setSelectedProvinceId(undefined)
       }
       setActiveTab("info")
@@ -272,6 +303,30 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
       }
     } catch (error) {
       console.error("Lỗi khi tải thân nhân:", error)
+    }
+  }
+
+  const loadProcessData = async () => {
+    if (!soldier?.SoldierID) return
+    try {
+      const [workResponse, trainingResponse] = await Promise.all([
+        fetch(`/api/soldiers/${soldier.SoldierID}/work-process?userId=${user?.userId}`),
+        fetch(`/api/soldiers/${soldier.SoldierID}/training-process?userId=${user?.userId}`),
+      ])
+
+      const [workResult, trainingResult] = await Promise.all([
+        workResponse.json(),
+        trainingResponse.json(),
+      ])
+
+      if (workResult.success) {
+        setWorkProcesses(workResult.data || [])
+      }
+      if (trainingResult.success) {
+        setTrainingProcesses(trainingResult.data || [])
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải quá trình công tác/đào tạo:", error)
     }
   }
 
@@ -313,11 +368,15 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
         const soldierID = isEditMode ? soldier.SoldierID : result.data?.SoldierID
         if (soldierID) {
           await saveFamilyMembers(soldierID)
+          await saveWorkProcesses(soldierID)
+          await saveTrainingProcesses(soldierID)
         }
 
         message.success(isEditMode ? "Đã cập nhật thông tin chiến sĩ" : "Đã thêm chiến sĩ mới")
         form.resetFields()
         setFamilyMembers([])
+        setWorkProcesses([])
+        setTrainingProcesses([])
         onSuccess?.()
         onClose()
       } else {
@@ -441,6 +500,50 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
       const updated = [...familyMembers]
       updated[index] = { ...updated[index], isDeleted: true }
       setFamilyMembers(updated)
+    }
+  }
+
+  // ============================================================
+  // WORK/TRAINING PROCESS CRUD
+  // ============================================================
+
+  const updateWorkProcess = (index: number, field: keyof WorkProcess, value: string) => {
+    setWorkProcesses((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const updateTrainingProcess = (index: number, field: keyof TrainingProcess, value: string) => {
+    setTrainingProcesses((prev) => {
+      const next = [...prev]
+      next[index] = { ...next[index], [field]: value }
+      return next
+    })
+  }
+
+  const saveWorkProcesses = async (soldierID: string) => {
+    const response = await fetch(`/api/soldiers/${soldierID}/work-process`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: workProcesses }),
+    })
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || "Lỗi khi lưu quá trình công tác")
+    }
+  }
+
+  const saveTrainingProcesses = async (soldierID: string) => {
+    const response = await fetch(`/api/soldiers/${soldierID}/training-process`, {
+      method: "PUT",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ data: trainingProcesses }),
+    })
+    const result = await response.json()
+    if (!result.success) {
+      throw new Error(result.message || "Lỗi khi lưu quá trình đào tạo")
     }
   }
 
@@ -757,6 +860,203 @@ export function SoldierForm({ open, onClose, soldier, onSuccess }: SoldierFormPr
                 )
               })}
             </div>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "workProcess",
+      label: `Quá trình công tác (${workProcesses.length})`,
+      children: (
+        <div style={{ maxHeight: "55vh", overflowY: "auto", padding: "0 4px" }}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setWorkProcesses([...workProcesses, {}])}
+            style={{ marginBottom: 16 }}
+          >
+            Thêm quá trình công tác
+          </Button>
+
+          {workProcesses.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#8c8c8c" }}>
+              <div>Chưa có quá trình công tác</div>
+            </div>
+          ) : (
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              {workProcesses.map((item, index) => (
+                <Card
+                  key={item.WorkProcessID || `work-${index}`}
+                  size="small"
+                  title={`Quá trình công tác ${index + 1}`}
+                  extra={
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setWorkProcesses(workProcesses.filter((_, i) => i !== index))}
+                    >
+                      Xoá
+                    </Button>
+                  }
+                >
+                  <Row gutter={16}>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 6 }}>Ngày từ</div>
+                      <Input
+                        value={item.FromDate || ""}
+                        placeholder="Nhập ngày từ"
+                        onChange={(e) => updateWorkProcess(index, "FromDate", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 6 }}>Ngày đến</div>
+                      <Input
+                        value={item.ToDate || ""}
+                        placeholder="Nhập ngày đến"
+                        onChange={(e) => updateWorkProcess(index, "ToDate", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 6 }}>Cấp bậc</div>
+                      <Input
+                        value={item.RankID || ""}
+                        placeholder="Nhập cấp bậc"
+                        onChange={(e) => updateWorkProcess(index, "RankID", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={6}>
+                      <div style={{ marginBottom: 6 }}>Chức vụ Đảng, đoàn thể</div>
+                      <Input
+                        value={item.PartyPosition || ""}
+                        placeholder="Nhập chức vụ Đảng, đoàn thể"
+                        onChange={(e) => updateWorkProcess(index, "PartyPosition", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={24} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Chức vụ, đơn vị, binh chủng, chiến trường</div>
+                      <Input.TextArea
+                        rows={2}
+                        value={item.WorkDescription || ""}
+                        placeholder="Nhập quá trình công tác"
+                        onChange={(e) => updateWorkProcess(index, "WorkDescription", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={24} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Ghi chú</div>
+                      <Input.TextArea
+                        rows={2}
+                        value={item.Description || ""}
+                        placeholder="Nhập ghi chú"
+                        onChange={(e) => updateWorkProcess(index, "Description", e.target.value)}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+              ))}
+            </Space>
+          )}
+        </div>
+      ),
+    },
+    {
+      key: "trainingProcess",
+      label: `Quá trình đào tạo (${trainingProcesses.length})`,
+      children: (
+        <div style={{ maxHeight: "55vh", overflowY: "auto", padding: "0 4px" }}>
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={() => setTrainingProcesses([...trainingProcesses, {}])}
+            style={{ marginBottom: 16 }}
+          >
+            Thêm quá trình đào tạo
+          </Button>
+
+          {trainingProcesses.length === 0 ? (
+            <div style={{ textAlign: "center", padding: 40, color: "#8c8c8c" }}>
+              <div>Chưa có quá trình đào tạo</div>
+            </div>
+          ) : (
+            <Space direction="vertical" size={12} style={{ width: "100%" }}>
+              {trainingProcesses.map((item, index) => (
+                <Card
+                  key={item.TrainingID || `training-${index}`}
+                  size="small"
+                  title={`Quá trình đào tạo ${index + 1}`}
+                  extra={
+                    <Button
+                      size="small"
+                      danger
+                      icon={<DeleteOutlined />}
+                      onClick={() => setTrainingProcesses(trainingProcesses.filter((_, i) => i !== index))}
+                    >
+                      Xoá
+                    </Button>
+                  }
+                >
+                  <Row gutter={16}>
+                    <Col span={8}>
+                      <div style={{ marginBottom: 6 }}>Tên trường đào tạo</div>
+                      <Input
+                        value={item.SchoolName || ""}
+                        placeholder="Nhập tên trường"
+                        onChange={(e) => updateTrainingProcess(index, "SchoolName", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <div style={{ marginBottom: 6 }}>Ngành học hoặc tên lớp học</div>
+                      <Input
+                        value={item.MajorName || ""}
+                        placeholder="Nhập ngành/lớp"
+                        onChange={(e) => updateTrainingProcess(index, "MajorName", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={8}>
+                      <div style={{ marginBottom: 6 }}>Hình thức đào tạo</div>
+                      <Input
+                        value={item.TrainingType || ""}
+                        placeholder="Nhập hình thức đào tạo"
+                        onChange={(e) => updateTrainingProcess(index, "TrainingType", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={8} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Ngày từ</div>
+                      <Input
+                        value={item.FromDate || ""}
+                        placeholder="Nhập ngày từ"
+                        onChange={(e) => updateTrainingProcess(index, "FromDate", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={8} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Ngày đến</div>
+                      <Input
+                        value={item.ToDate || ""}
+                        placeholder="Nhập ngày đến"
+                        onChange={(e) => updateTrainingProcess(index, "ToDate", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={8} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Bằng cấp, chứng chỉ</div>
+                      <Input
+                        value={item.Certificate || ""}
+                        placeholder="Nhập bằng cấp/chứng chỉ"
+                        onChange={(e) => updateTrainingProcess(index, "Certificate", e.target.value)}
+                      />
+                    </Col>
+                    <Col span={24} style={{ marginTop: 12 }}>
+                      <div style={{ marginBottom: 6 }}>Ghi chú</div>
+                      <Input.TextArea
+                        rows={2}
+                        value={item.Description || ""}
+                        placeholder="Nhập ghi chú"
+                        onChange={(e) => updateTrainingProcess(index, "Description", e.target.value)}
+                      />
+                    </Col>
+                  </Row>
+                </Card>
+              ))}
+            </Space>
           )}
         </div>
       ),
