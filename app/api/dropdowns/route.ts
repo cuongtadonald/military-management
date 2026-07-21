@@ -20,7 +20,26 @@ export async function GET(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const userId = searchParams.get('userId') || '';
-    const mode = searchParams.get('mode') || '';
+const mode = searchParams.get('mode') || '';
+
+const validModes = [
+  'RANK',
+  'PROVINCE',
+  'WARD',
+  'RELIGION',
+  'MARITAL',
+  'STATUS_SOLDIER'
+];
+
+if (!validModes.includes(mode)) {
+  return NextResponse.json(
+    { 
+      success: false, 
+      message: 'Mode không hợp lệ' 
+    },
+    { status: 400 }
+  );
+}
 
     if (!userId || !mode) {
       return NextResponse.json(
@@ -32,11 +51,19 @@ export async function GET(request: NextRequest) {
     const pool = await getPool();
 
     // Gọi SP W01P0002
-    const result = await pool.request()
-      .input('UserID', sql.VarChar, userId)
-      .input('Mode', sql.VarChar, mode)
-      .execute('W01P0002');
-
+      const result = await pool.request()
+        .input('UserID', sql.VarChar, userId)
+        .input('Mode', sql.VarChar, mode)
+        .execute('W01P0002');
+    if (mode === 'UNIT') {
+      return NextResponse.json({
+        success: true,
+        data: result.recordset.map(item => ({
+          value: item.UnitID,
+          label: item.UnitFullPathName
+        })),
+      });
+    }
     return NextResponse.json({
       success: true,
       data: result.recordset,

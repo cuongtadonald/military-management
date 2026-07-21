@@ -320,25 +320,25 @@ export default function SoldierDetailPage() {
 
   const formatGender = (gender: number) => gender === 1 ? "Nam" : "Nữ"
 
-  // Render đơn vị theo hierarchy - cấp trên nhỏ, hiện tại bình thường
-  const renderUnitHierarchy = (fullPath: string, unitName: string) => {
-    if (!fullPath) return <Typography.Text>{unitName}</Typography.Text>
-    const parts = fullPath.split(',')
-    if (parts.length <= 1) return <Typography.Text>{fullPath}</Typography.Text>
+  // Render cột đơn vị với hierarchy - cấp trên nhỏ, hiện tại bình thường
+  const renderUnitHierarchy = (unitFullPath: string, unitName: string) => {
+    if (!unitFullPath) return unitName || ""
+    const parts = unitFullPath.split(',')
+    if (parts.length <= 1) return <Typography.Text>{unitName || unitFullPath}</Typography.Text>
 
     const currentUnit = parts[parts.length - 1]
     const parentUnits = parts.slice(0, -1).join(', ')
 
     return (
-      <div style={{ lineHeight: 1.5 }}>
+      <div>
         {parentUnits && (
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+          <Typography.Text style={{ fontSize: 11, color: "#8c8c8c", display: 'block', lineHeight: 1.2 }}>
             {parentUnits}
-          </div>
+          </Typography.Text>
         )}
-        <div style={{ fontWeight: 500, color: "#262626" }}>
+        <Typography.Text style={{ fontWeight: 500, display: 'block', lineHeight: 1.3 }}>
           {currentUnit}
-        </div>
+        </Typography.Text>
       </div>
     )
   }

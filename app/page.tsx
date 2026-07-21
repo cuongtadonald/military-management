@@ -195,6 +195,7 @@ export default function DashboardPage() {
       const response = await fetch(`/api/soldiers?${params.toString()}`)
       const result = await response.json()
       if (result.success) {
+        console.log("DATA SOLDIER:", result.data)
         const nextPagination = {
           current: result.page ?? page,
           pageSize: result.pageSize ?? pageSize,
@@ -481,9 +482,21 @@ export default function DashboardPage() {
       key: "PhotoPath",
       width: 60,
       align: "center",
+      // render: (photo: string, record) => (
+      //   <Avatar size={36} src={photo} style={{ background: "#4b5320" }}>
+      //     {record.FullName.charAt(0)}
+      //   </Avatar>
+      // ),
       render: (photo: string, record) => (
-        <Avatar size={36} src={photo} style={{ background: "#4b5320" }}>
-          {record.FullName.charAt(0)}
+        <Avatar
+          size={40}
+          src={photo || undefined}
+          style={{ 
+            background: "#4b5320",
+            verticalAlign: "middle"
+          }}
+        >
+          {record.FullName?.charAt(0)}
         </Avatar>
       ),
     },
@@ -635,34 +648,140 @@ export default function DashboardPage() {
     e.target.value = ""
   }
 
-  const handleExportExcel = async () => {
-    try {
-      const XLSX = await import("xlsx")
-      const exportData = currentData.map((s) => ({
-        "Mã QS": s.SoldierID,
-        "Họ và tên": s.FullName,
-        "Giới tính": formatGender(s.Gender),
-        "Ngày sinh": formatDate(s.DateOfBirth),
-        "CCCD": s.CitizenID,
-        "Đơn vị": s.UnitFullPath || s.UnitName,
-        "Chức vụ": s.Position,
-        "Cấp bậc": s.RankName,
-        "Trạng thái": s.StatusName,
-      }))
-      const ws = XLSX.utils.json_to_sheet(exportData)
-      const wb = XLSX.utils.book_new()
-      XLSX.utils.book_append_sheet(wb, ws, "DanhSach")
-      XLSX.writeFile(wb, `DanhSachQuanNhan_${activeTab}.xlsx`)
-      message.success("Đã xuất file")
-    } catch (error) {
-      console.error("Lỗi khi xuất Excel:", error)
-      message.error("Lỗi khi xuất file Excel")
-    }
-  }
+  // const handleExportExcel = async () => {
+  //   try {
+  //     const XLSX = await import("xlsx")
+  //     const exportData = currentData.map((s) => ({
+  //       "Mã QS": s.SoldierID,
+  //       "Họ và tên": s.FullName,
+  //       "Giới tính": formatGender(s.Gender),
+  //       "Ngày sinh": formatDate(s.DateOfBirth),
+  //       "CCCD": s.CitizenID,
+  //       "Đơn vị": s.UnitFullPath || s.UnitName,
+  //       "Chức vụ": s.Position,
+  //       "Cấp bậc": s.RankName,
+  //       "Trạng thái": s.StatusName,
+  //     }))
+  //     const ws = XLSX.utils.json_to_sheet(exportData)
+  //     const wb = XLSX.utils.book_new()
+  //     XLSX.utils.book_append_sheet(wb, ws, "DanhSach")
+  //     XLSX.writeFile(wb, `DanhSachQuanNhan_${activeTab}.xlsx`)
+  //     message.success("Đã xuất file")
+  //   } catch (error) {
+  //     console.error("Lỗi khi xuất Excel:", error)
+  //     message.error("Lỗi khi xuất file Excel")
+  //   }
+  // }
 
   // ============================================================
   // RENDER
   // ============================================================
+
+    const handleExportExcel = async () => {
+      try {
+
+          const params = new URLSearchParams({
+              userId: currentUser.userId,
+              mode: activeTab === "discharged" ? "1" : "0",
+              export: "true"
+          });
+
+          if (search.trim())
+              params.set("search", search);
+
+          if (selectedUnitId)
+              params.set("unitId", selectedUnitId);
+
+          if (unitPathSearch.trim())
+              params.set("unitPath", unitPathSearch);
+
+          const response = await fetch(`/api/soldiers?${params}`);
+
+          const result = await response.json();
+
+          if (!result.success) {
+              message.error(result.message);
+              return;
+          }
+
+          const XLSX = await import("xlsx");
+
+          const exportData = result.data.map((s: any) => ({
+      "Mã quân nhân": s.SoldierID,
+      "Họ và tên": s.FullName,
+      "Ngày sinh": formatDate(s.DateOfBirth),
+      "Giới tính": formatGender(s.Gender),
+      "CCCD": s.CitizenID,
+
+      "Đơn vị": s.UnitName,
+      "Đường dẫn đơn vị": s.UnitFullPath,
+      "Hierarchy": s.UnitHierarchyPath,
+
+      "Chức vụ": s.Position,
+      "Cấp bậc": s.RankName,
+      "Trạng thái": s.StatusName,
+
+      "Dân tộc": s.Ethnicity,
+      "Tôn giáo": s.ReligionName,
+      "Hôn nhân": s.MaritalStatusName,
+
+      "Trình độ": s.EducationLevel,
+      "Chuyên môn": s.Specialization,
+      "Chính trị": s.PoliticalLevel,
+
+      "Nhóm máu": s.BloodType,
+      "Sức khỏe": s.HealthClassification,
+
+      "Chiều cao": s.Height,
+      "Cân nặng": s.Weight,
+      "Huyết áp": s.BloodPressure,
+
+      "Quê quán": s.Hometown,
+      "Địa chỉ": s.Address,
+      "Phường": s.WardName,
+      "Tỉnh": s.ProvinceName,
+
+      "Ngày nhập ngũ": formatDate(s.EnlistmentDate),
+      "Ngày vào Đảng": formatDate(s.PartyJoinDate),
+      "Ngày vào Đoàn": formatDate(s.YouthUnionJoinDate),
+
+      "Người tạo": s.CreatedBy,
+      "Ngày tạo": formatDate(s.CreatedDate),
+
+      "Người sửa": s.LastModifiedBy,
+      "Ngày sửa": formatDate(s.LastModifiedDate)
+  }));
+
+        const ws = XLSX.utils.json_to_sheet(exportData);
+
+        ws["!cols"] = [
+            { wch: 15 },
+            { wch: 30 },
+            { wch: 15 },
+            { wch: 10 },
+            { wch: 18 },
+            { wch: 40 },
+            { wch: 20 },
+            { wch: 20 },
+            { wch: 15 }
+        ];
+
+        const wb = XLSX.utils.book_new();
+
+        XLSX.utils.book_append_sheet(wb, ws, "Danh sách");
+
+        XLSX.writeFile(wb, "DanhSachQuanNhan.xlsx");
+
+        message.success("Xuất Excel thành công");
+
+    } catch (err) {
+
+        console.error(err);
+
+        message.error("Xuất Excel thất bại");
+
+    }
+};
 
   const activeCount = activePagination.total
   const dischargedCount = dischargedPagination.total

@@ -101,21 +101,21 @@ export async function POST(request: NextRequest) {
       Boolean(isEnabled),
     );
 
-    await createChangeHistory({
-      pool,
-      changedBy: grantedByUserId,
-      changeType: 'PERMISSION',
-      changeReason: isEnabled ? 'Cấp quyền trực tiếp' : 'Thu hồi quyền trực tiếp',
-      description: `${isEnabled ? 'Bật' : 'Tắt'} quyền ${FEATURE_LABELS[featureCode] || featureCode} cho user ${grantedToUserId}`,
-      totalSoldier: 0,
-      details: [{
-        soldierId: null,
-        fieldName: featureCode,
-        fieldDisplayName: FEATURE_LABELS[featureCode] || featureCode,
-        oldValue: permissionChange.oldValue,
-        newValue: Boolean(isEnabled),
-      }],
-    });
+    // await createChangeHistory({
+    //   pool,
+    //   changedBy: grantedByUserId,
+    //   changeType: 'PERMISSION',
+    //   changeReason: isEnabled ? 'Cấp quyền trực tiếp' : 'Thu hồi quyền trực tiếp',
+    //   description: `${isEnabled ? 'Bật' : 'Tắt'} quyền ${FEATURE_LABELS[featureCode] || featureCode} cho user ${grantedToUserId}`,
+    //   totalSoldier: 0,
+    //   details: [{
+    //     soldierId: null,
+    //     fieldName: featureCode,
+    //     fieldDisplayName: FEATURE_LABELS[featureCode] || featureCode,
+    //     oldValue: permissionChange.oldValue,
+    //     newValue: Boolean(isEnabled),
+    //   }],
+    // });
 
     // Lấy thông tin user bị ảnh hưởng để trả về cho frontend
     const userInfoResult = await pool.request()

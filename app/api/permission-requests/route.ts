@@ -1,7 +1,12 @@
 import { NextRequest, NextResponse } from 'next/server'
 import { getPool } from '@/lib/db'
 import sql from 'mssql'
-import { createChangeHistory, ensureAuditTables, FEATURE_LABELS } from '@/lib/audit'
+import { 
+  createChangeHistory, 
+  ensureAuditTables, 
+  FEATURE_LABELS,
+  setUserPermission
+} from '@/lib/audit'
 
 const ALL_PERMISSION_FEATURES = ['canCreate', 'canEdit', 'canDelete', 'canExport', 'canImport', 'canImportExport']
 const REQUEST_STATUS = {
@@ -170,4 +175,112 @@ export async function POST(request: NextRequest) {
     console.error('Lỗi khi gửi yêu cầu mở quyền:', error)
     return NextResponse.json({ success: false, message: 'Lỗi khi gửi yêu cầu mở quyền' }, { status: 500 })
   }
+}
+
+export async function PUT(request: NextRequest) {
+  try {
+    const body = await request.json()
+
+    const {
+      requestId,
+      approvedBy
+    } = body
+
+    if (!requestId || !approvedBy) {
+      return NextResponse.json(
+        { success: false, message: "Thiếu thông tin duyệt" },
+        { status: 400 }
+      )
+    }
+
+    const pool = await getPool()
+
+    // 1. Lấy người yêu cầu
+    const requestResult = await pool.request()
+      .input("RequestID", sql.VarChar, requestId)
+      .query(`
+        SELECT RequestBy
+        FROM PermissionRequest
+        WHERE RequestID = @RequestID
+      `)
+
+
+    if (requestResult.recordset.length === 0) {
+      return NextResponse.json(
+        { success:false, message:"Không tìm thấy yêu cầu" },
+        { status:404 }
+      )
+    }
+
+
+    const requestBy = requestResult.recordset[0].RequestBy
+
+
+    // // 2. CẤP QUYỀN GIỐNG TRANG QUẢN LÝ QUYỀN
+    // const permissionResponse = await fetch(
+    //   `${process.env.NEXT_PUBLIC_APP_URL}/api/permissions`,
+    //   {
+    //     method:"POST",
+    //     headers:{
+    //       "Content-Type":"application/json"
+    //     },
+    //     body:JSON.stringify({
+    //       grantedByUserId: approvedBy,
+    //       grantedToUserId: requestBy,
+    //       featureCode:"all",
+    //       isEnabled:true
+    //     })
+    //   }
+    // )
+
+
+    // const permissionResult = await permissionResponse.json()
+
+    // if(!permissionResult.success){
+    //   throw new Error(permissionResult.message)
+    // }
+
+    await setUserPermission(
+        pool,
+        approvedBy,
+        requestBy,
+        "all",
+        true
+      )
+
+    // 3. Cập nhật trạng thái yêu cầu
+    await pool.request()
+      .input("RequestID", sql.VarChar, requestId)
+      .input("ApprovedBy", sql.VarChar, approvedBy)
+      .query(`
+        UPDATE PermissionRequest
+        SET 
+          StatusID = 'Approved',
+          ApprovedDate = GETDATE(),
+          ApprovedBy = @ApprovedBy
+        WHERE RequestID = @RequestID
+      `)
+
+
+    return NextResponse.json({
+      success:true,
+      message:"Đã duyệt và cấp quyền thành công"
+    })
+
+
+  } catch(error:any){
+
+  console.error("Lỗi duyệt yêu cầu:", error)
+
+  return NextResponse.json(
+    {
+      success:false,
+      message: error?.message || "Lỗi khi duyệt yêu cầu",
+      detail: error?.stack || error
+    },
+    {
+      status:500
+    }
+  )
+}
 }

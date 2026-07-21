@@ -18,6 +18,7 @@ import {
   BellOutlined, 
   UserOutlined, 
   ApartmentOutlined,
+  FileTextOutlined,
   HomeOutlined,
   SettingOutlined,
   LogoutOutlined 
@@ -26,6 +27,7 @@ import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
 import UnitTree from "@/components/UnitTree"
+import { DocumentListPage } from "@/components/document-list-page"
 
 const { Header } = Layout
 
@@ -38,6 +40,7 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
   const { user, logout, canManagePermissions } = useAuth()
   const { pendingCount } = useChangeLog()
   const [unitTreeVisible, setUnitTreeVisible] = useState(false)
+  const [documentPageVisible, setDocumentPageVisible] = useState(false)
 
   const hasNotification = pendingCount > 0
 
@@ -84,22 +87,22 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, textDecoration: "none" }}>
           <Avatar
             size={40}
-            src="/avatarqlqdtvc.png"
+            src="/logovn.jpg"
             style={{ flexShrink: 0, cursor: "pointer", objectFit: "cover", backgroundColor: "#fff" }}
           />
           <div style={{ minWidth: 0 }}>
             <Typography.Text style={{ color: "#fff", fontWeight: 700, fontSize: 16, display: "block", lineHeight: 1.2 }} ellipsis>
-              Hồ sơ quân đội
+              Hồ sơ quân nhân
             </Typography.Text>
             <Typography.Text style={{ color: "#c7cba0", fontSize: 11, display: "block", lineHeight: 1.2 }} ellipsis>
-              Hệ thống quản lý thông tin quân đội
+              Hệ thống quản lý thông tin quân nhân
             </Typography.Text>
           </div>
         </Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Nút Cơ cấu đơn vị */}
-          <Button
+          {/* <Button
             type="primary"
             icon={<ApartmentOutlined />}
             onClick={() => setUnitTreeVisible(true)}
@@ -115,6 +118,26 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
           >
             <span className="hidden sm:inline">
               Cơ cấu đơn vị
+            </span>
+          </Button> */}
+
+          {/* Nút Tài liệu quân lực */}
+          <Button
+            type="primary"
+            icon={<FileTextOutlined />}
+            onClick={() => setDocumentPageVisible(true)}
+            style={{ 
+              background: "#4b5320",
+              borderColor: "#4b5320",
+              display: "flex",
+              alignItems: "center",
+              gap: 8,
+              fontWeight: 500,
+            }}
+            title="Tài liệu quân lực"
+          >
+            <span className="hidden sm:inline">
+              Tài liệu quân lực
             </span>
           </Button>
 
@@ -198,6 +221,12 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
           onClose={() => setUnitTreeVisible(false)}
         />
       )}
+
+      {/* Modal danh sách tài liệu quân lực */}
+      <DocumentListPage
+        open={documentPageVisible}
+        onClose={() => setDocumentPageVisible(false)}
+      />
     </>
   )
 }

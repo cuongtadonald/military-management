@@ -131,16 +131,16 @@ export default function LoginPage() {
               }}
             >
               <img
-                src="/avatarqlqdtvc.png"
+                src="/logovn.jpg"
                 alt="Logo"
                 style={{ width: 80, height: 80, borderRadius: "50%" }}
               />
             </div>
             <Title level={2} style={{ margin: 0, color: "#4b5320" }}>
-              Hồ sơ quân đội
+              Hồ sơ quân nhân
             </Title>
             <Text type="secondary" style={{ fontSize: 14 }}>
-              Hệ thống quản lý thông tin quân đội
+              Hệ thống quản lý thông tin quân nhân
             </Text>
           </div>
 
@@ -230,7 +230,7 @@ export default function LoginPage() {
                     Nhấn để điền nhanh:
                   </Text>
                 </Col>
-                <Col span={12}>
+                {/* <Col span={12}>
                   <Button
                     size="small"
                     block
@@ -239,12 +239,12 @@ export default function LoginPage() {
                   >
                     Admin
                   </Button>
-                </Col>
+                </Col> */}
                 <Col span={12}>
                   <Button
                     size="small"
                     block
-                    onClick={() => handleQuickFill("suddoan", "123456")}
+                    onClick={() => handleQuickFill("sd5_admin", "123456")}
                     disabled={loading}
                   >
                     Sư đoàn 5
@@ -254,20 +254,30 @@ export default function LoginPage() {
                   <Button
                     size="small"
                     block
-                    onClick={() => handleQuickFill("trungdoan", "123456")}
+                    onClick={() => handleQuickFill("tr4_manager", "123456")}
                     disabled={loading}
                   >
-                    Trung đoàn
+                    Trung đoàn 4
                   </Button>
                 </Col>
                 <Col span={12}>
                   <Button
                     size="small"
                     block
-                    onClick={() => handleQuickFill("tieudoan", "123456")}
+                    onClick={() => handleQuickFill("eBB5", "123456")}
                     disabled={loading}
                   >
-                    Tiểu đoàn
+                    Trung đoàn 5
+                  </Button>
+                </Col>
+                <Col span={12}>
+                  <Button
+                    size="small"
+                    block
+                    onClick={() => handleQuickFill("trd_4", "123456")}
+                    disabled={loading}
+                  >
+                    Tiểu đoàn Bộ binh 4
                   </Button>
                 </Col>
               </Row>

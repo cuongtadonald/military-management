@@ -72,18 +72,27 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return {}
   }, [])
 
-  // Refresh permission cho user hiện tại
+  // Refresh permission cho user hiện tại - reload permissionLevel từ server
   const refreshPermissions = useCallback(async () => {
     if (!user?.userId) return
     
-    const permissions = await loadPermissions(user.userId)
-    const updatedUser: User = {
-      ...user,
-      permissions,
+    try {
+      const response = await fetch(`/api/auth/refresh-permission?userId=${user.userId}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        const updatedUser: User = {
+          ...user,
+          permissionLevel: result.data.permissionLevel,
+          permissions: {},
+        }
+        setUser(updatedUser)
+        localStorage.setItem("user", JSON.stringify(updatedUser))
+      }
+    } catch (error) {
+      console.error("Lỗi khi refresh permission:", error)
     }
-    setUser(updatedUser)
-    localStorage.setItem("user", JSON.stringify(updatedUser))
-  }, [user, loadPermissions])
+  }, [user])
 
   // Check session khi mount
   useEffect(() => {
@@ -92,20 +101,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       try {
         const parsed: User = JSON.parse(savedUser)
         setUser(parsed)
-        // Load permission nếu chưa có hoặc đã cũ
-        if (!parsed.permissions || Object.keys(parsed.permissions).length === 0) {
-          loadPermissions(parsed.userId).then(permissions => {
-            const updatedUser: User = { ...parsed, permissions }
-            setUser(updatedUser)
-            localStorage.setItem("user", JSON.stringify(updatedUser))
-          })
+        // Nếu permissionLevel chưa có, thử load lại
+        if (parsed.permissionLevel === undefined) {
+          fetch(`/api/auth/refresh-permission?userId=${parsed.userId}`)
+            .then(r => r.json())
+            .then(result => {
+              if (result.success) {
+                const updatedUser: User = { ...parsed, permissionLevel: result.data.permissionLevel }
+                setUser(updatedUser)
+                localStorage.setItem("user", JSON.stringify(updatedUser))
+              }
+            })
+            .catch(() => {})
         }
       } catch {
         localStorage.removeItem("user")
       }
     }
     setIsLoading(false)
-  }, [loadPermissions])
+  }, [])
 
   // Setup BroadcastChannel cho realtime sync - chỉ setup 1 lần
   useEffect(() => {
@@ -122,25 +136,25 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     // Lắng nghe permission updates từ các tab khác
     const handleMessage = async (event: MessageEvent) => {
-      const { type, userId, permissions } = event.data
+      const { type, userId, permissionLevel } = event.data
       
       if (type === 'permission_update' && userId) {
         // Lấy user hiện tại từ state hoặc localStorage
         const currentUser = user || JSON.parse(localStorage.getItem("user") || "null")
         
         if (currentUser && currentUser.userId === userId) {
-          // User hiện tại bị ảnh hưởng → refresh permissions
-          const newPermissions = permissions || await loadPermissions(userId)
+          // User hiện tại bị ảnh hưởng → cập nhật permissionLevel
           const updatedUser: User = {
             ...currentUser,
-            permissions: newPermissions,
+            permissionLevel: permissionLevel ?? currentUser.permissionLevel,
+            permissions: {},
           }
           setUser(updatedUser)
           localStorage.setItem("user", JSON.stringify(updatedUser))
           
           // Force re-render các component khác
           window.dispatchEvent(new CustomEvent('permission_changed', { 
-            detail: { userId, permissions: newPermissions } 
+            detail: { userId, permissionLevel } 
           }))
         }
       }
@@ -171,7 +185,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('storage', handleStorageChange)
       // KHÔNG đóng channel ở đây để các component khác vẫn dùng được
     }
-  }, [user, loadPermissions])
+  }, [user])
 
   // Login
   const login = async (username: string, password: string) => {
@@ -188,9 +202,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         throw new Error(result.message || "Đăng nhập thất bại")
       }
 
-      // Load permissions ngay sau khi login
-      const permissions = await loadPermissions(result.data.userId)
-
+      // Load permission ngay sau khi login
       const userData: User = {
         userId: result.data.userId,
         fullName: result.data.fullName,
@@ -201,8 +213,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         unitLevel: result.data.unitLevel,
         hierarchyPath: result.data.hierarchyPath,
         roleId: result.data.roleId,
-        permissionLevel: result.data.permissionLevel, // MỚI
-        permissions,
+        permissionLevel: result.data.permissionLevel || 3,
+        permissions: {},
       }
 
       setUser(userData)
@@ -220,21 +232,18 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     router.push("/login")
   }
 
-  // Check permission
-  const hasPermission = (featureCode: string): boolean => {
+  // Check permission dựa trên PermissionLevel
+  // PermissionLevel = 2 → có quyền (Thêm, Sửa, Xóa, Nhập/Xuất Excel)
+  // PermissionLevel = 3 → bị giới hạn quyền (ẩn toàn bộ chức năng)
+  const hasPermission = (_featureCode: string): boolean => {
     if (!user) return false
-    // Admin luôn có quyền
-    if (user.roleId === "R001" || user.roleId === "ADMIN") return true
-    // Check permission từ user state
-    return user.permissions?.[featureCode] ?? false
+    return user.permissionLevel === 2
   }
 
   // Check nếu có thể quản lý permission
   // Logic: Chỉ hiển thị cho user có PermissionLevel < 3
-  // PermissionLevel: 1=Sư đoàn, 2=Trung đoàn, 3+=Tiểu đoàn trở xuống
   const canManagePermissions = (): boolean => {
     if (!user) return false
-    // User có PermissionLevel < 3 mới có quyền quản lý
     return user.permissionLevel < 3
   }
 

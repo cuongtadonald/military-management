@@ -96,50 +96,111 @@ export async function ensureAuditTables(pool: sql.ConnectionPool) {
 }
 
 export async function createChangeHistory(input: CreateChangeHistoryInput) {
-  const { pool, requestId = null, changedBy, changeType, changeReason = null, totalSoldier = 0, description = null, details = [] } = input
+  const {
+    pool,
+    requestId = null,
+    changedBy,
+    changeType,
+    changeReason = null,
+    totalSoldier = 0,
+    description = null,
+    details = [],
+  } = input
 
   if (!changedBy) return null
 
-  await ensureAuditTables(pool)
+  try {
+    console.log("===== CREATE CHANGE HISTORY =====")
+    console.log(input)
 
-  const changeHistoryId = makeId('CH')
-  await pool.request()
-    .input('ChangeHistoryID', sql.VarChar, changeHistoryId)
-    .input('RequestID', sql.VarChar, requestId)
-    .input('ChangedBy', sql.VarChar, changedBy)
-    .input('ChangeType', sql.VarChar, changeType)
-    .input('ChangeReason', sql.NVarChar, changeReason)
-    .input('TotalSoldier', sql.Int, totalSoldier)
-    .input('Description', sql.NVarChar, description)
-    .query(`
-      INSERT INTO ChangeHistory (
-        ChangeHistoryID, RequestID, ChangeDate, ChangedBy, ChangeType,
-        ChangeReason, TotalSoldier, Description
-      ) VALUES (
-        @ChangeHistoryID, @RequestID, GETDATE(), @ChangedBy, @ChangeType,
-        @ChangeReason, @TotalSoldier, @Description
-      )
-    `)
+    await ensureAuditTables(pool)
 
-  for (const detail of details) {
+    const changeHistoryId = makeId("CH")
+
+    console.log("Insert ChangeHistory...")
+
     await pool.request()
-      .input('DetailID', sql.VarChar, makeId('CHD'))
-      .input('ChangeHistoryID', sql.VarChar, changeHistoryId)
-      .input('SoldierID', sql.VarChar, detail.soldierId ?? null)
-      .input('FieldName', sql.VarChar, detail.fieldName)
-      .input('FieldDisplayName', sql.NVarChar, detail.fieldDisplayName)
-      .input('OldValue', sql.NVarChar, stringifyValue(detail.oldValue))
-      .input('NewValue', sql.NVarChar, stringifyValue(detail.newValue))
+      .input("ChangeHistoryID", sql.VarChar, changeHistoryId)
+      .input("RequestID", sql.VarChar, requestId)
+      .input("ChangedBy", sql.VarChar, changedBy)
+      .input("ChangeType", sql.VarChar, changeType)
+      .input("ChangeReason", sql.NVarChar(sql.MAX), changeReason)
+      .input("TotalSoldier", sql.Int, totalSoldier)
+      .input("Description", sql.NVarChar(sql.MAX), description)
       .query(`
-        INSERT INTO ChangeHistoryDetail (
-          DetailID, ChangeHistoryID, SoldierID, FieldName, FieldDisplayName, OldValue, NewValue
-        ) VALUES (
-          @DetailID, @ChangeHistoryID, @SoldierID, @FieldName, @FieldDisplayName, @OldValue, @NewValue
+        INSERT INTO ChangeHistory (
+          ChangeHistoryID,
+          RequestID,
+          ChangeDate,
+          ChangedBy,
+          ChangeType,
+          ChangeReason,
+          TotalSoldier,
+          Description
+        )
+        VALUES (
+          @ChangeHistoryID,
+          @RequestID,
+          GETDATE(),
+          @ChangedBy,
+          @ChangeType,
+          @ChangeReason,
+          @TotalSoldier,
+          @Description
         )
       `)
-  }
 
-  return changeHistoryId
+    console.log("Insert ChangeHistory thành công")
+
+    for (const detail of details) {
+      console.log("Insert Detail:", detail)
+
+      await pool.request()
+        .input("DetailID", sql.VarChar, makeId("CHD"))
+        .input("ChangeHistoryID", sql.VarChar, changeHistoryId)
+        .input("SoldierID", sql.VarChar, detail.soldierId ?? null)
+        .input("FieldName", sql.VarChar, detail.fieldName)
+        .input("FieldDisplayName", sql.NVarChar(sql.MAX), detail.fieldDisplayName)
+        .input("OldValue", sql.NVarChar(sql.MAX), stringifyValue(detail.oldValue))
+        .input("NewValue", sql.NVarChar(sql.MAX), stringifyValue(detail.newValue))
+        .query(`
+          INSERT INTO ChangeHistoryDetail (
+            DetailID,
+            ChangeHistoryID,
+            SoldierID,
+            FieldName,
+            FieldDisplayName,
+            OldValue,
+            NewValue
+          )
+          VALUES (
+            @DetailID,
+            @ChangeHistoryID,
+            @SoldierID,
+            @FieldName,
+            @FieldDisplayName,
+            @OldValue,
+            @NewValue
+          )
+        `)
+    }
+
+    console.log("Insert ChangeHistoryDetail thành công")
+
+    return changeHistoryId
+
+  } catch (err: any) {
+    console.error("======================================")
+    console.error("LỖI createChangeHistory")
+    console.error(err)
+    console.error("Message:", err.message)
+    console.error("Number:", err.number)
+    console.error("State:", err.state)
+    console.error("Line:", err.lineNumber)
+    console.error("======================================")
+
+    throw err
+  }
 }
 
 export async function getUserScope(pool: sql.ConnectionPool, userId: string) {
@@ -171,73 +232,47 @@ export async function getVisibleUserIds(pool: sql.ConnectionPool, userId: string
   return result.recordset.map((row: any) => row.UserID)
 }
 
-async function ensureUserFeaturePermissionTable(pool: sql.ConnectionPool) {
-  await pool.request().query(`
-    IF OBJECT_ID(N'dbo.UserFeaturePermission', N'U') IS NULL
-    BEGIN
-      CREATE TABLE dbo.UserFeaturePermission (
-        PermissionID VARCHAR(50) NOT NULL PRIMARY KEY,
-        GrantedByUserID VARCHAR(50) NOT NULL,
-        GrantedToUserID VARCHAR(50) NOT NULL,
-        FeatureCode VARCHAR(100) NOT NULL,
-        IsEnabled BIT NOT NULL DEFAULT 0,
-        GrantedDate DATETIME NOT NULL DEFAULT GETDATE(),
-        LastModifiedDate DATETIME NULL,
-        LastModifiedBy VARCHAR(50) NULL
-      )
-    END
-  `)
-}
-
+/**
+ * Cập nhật quyền user bằng cách thay đổi PermissionLevel trực tiếp trên bảng User.
+ *
+ * Logic:
+ *   - isEnabled = true  → PermissionLevel = 2 (có quyền: Thêm, Sửa, Xóa, Nhập/Xuất Excel)
+ *   - isEnabled = false → PermissionLevel = 3 (bị giới hạn, ẩn toàn bộ chức năng)
+ *
+ * Không còn sử dụng bảng UserFeaturePermission riêng lẻ.
+ */
 export async function setUserPermission(
   pool: sql.ConnectionPool,
-  grantedByUserId: string,
+  _grantedByUserId: string,
   grantedToUserId: string,
-  featureCode: string,
+  _featureCode: string,
   isEnabled: boolean,
 ) {
-  await ensureUserFeaturePermissionTable(pool)
+  const newPermissionLevel = isEnabled ? 2 : 3
 
+  // Lấy PermissionLevel hiện tại để phục vụ audit
   const checkResult = await pool.request()
-    .input('grantedToUserId', sql.VarChar, grantedToUserId)
-    .input('featureCode', sql.VarChar, featureCode)
+    .input('userId', sql.VarChar, grantedToUserId)
     .query(`
-      SELECT PermissionID, IsEnabled
-      FROM UserFeaturePermission
-      WHERE GrantedToUserID = @grantedToUserId AND FeatureCode = @featureCode
+      SELECT PermissionLevel
+      FROM [User]
+      WHERE UserID = @userId
     `)
 
-  const oldValue = checkResult.recordset[0]?.IsEnabled === undefined
-    ? null
-    : Boolean(checkResult.recordset[0].IsEnabled)
+  const oldPermissionLevel = checkResult.recordset[0]?.PermissionLevel ?? null
 
-  if (checkResult.recordset.length > 0) {
-    await pool.request()
-      .input('grantedToUserId', sql.VarChar, grantedToUserId)
-      .input('featureCode', sql.VarChar, featureCode)
-      .input('isEnabled', sql.Bit, isEnabled ? 1 : 0)
-      .input('lastModifiedBy', sql.VarChar, grantedByUserId)
-      .query(`
-        UPDATE UserFeaturePermission
-        SET IsEnabled = @isEnabled,
-            LastModifiedDate = GETDATE(),
-            LastModifiedBy = @lastModifiedBy
-        WHERE GrantedToUserID = @grantedToUserId AND FeatureCode = @featureCode
-      `)
-  } else {
-    await pool.request()
-      .input('permissionId', sql.VarChar, makeShortId('PERM'))
-      .input('grantedByUserId', sql.VarChar, grantedByUserId)
-      .input('grantedToUserId', sql.VarChar, grantedToUserId)
-      .input('featureCode', sql.VarChar, featureCode)
-      .input('isEnabled', sql.Bit, isEnabled ? 1 : 0)
-      .query(`
-        INSERT INTO UserFeaturePermission
-          (PermissionID, GrantedByUserID, GrantedToUserID, FeatureCode, IsEnabled, GrantedDate, LastModifiedDate, LastModifiedBy)
-        VALUES
-          (@permissionId, @grantedByUserId, @grantedToUserId, @featureCode, @isEnabled, GETDATE(), GETDATE(), @grantedByUserId)
-      `)
+  // Cập nhật PermissionLevel trực tiếp trên bảng User
+  await pool.request()
+    .input('userId', sql.VarChar, grantedToUserId)
+    .input('permissionLevel', sql.Int, newPermissionLevel)
+    .query(`
+      UPDATE [User]
+      SET PermissionLevel = @permissionLevel
+      WHERE UserID = @userId
+    `)
+
+  return {
+    oldValue: oldPermissionLevel === 2,
+    newValue: isEnabled,
   }
-
-  return { oldValue, newValue: isEnabled }
 }

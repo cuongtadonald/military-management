@@ -22,7 +22,7 @@ export async function GET(request: NextRequest) {
     const unitPath = (searchParams.get('unitPath') || '').trim();
     const page = Math.max(Number(searchParams.get('page') || '1'), 1);
     const pageSize = Math.min(Math.max(Number(searchParams.get('pageSize') || '20'), 1), 200);
-
+    const exportExcel = searchParams.get("export") === "true";
     if (!userId) {
       return NextResponse.json(
         { success: false, message: 'Thiếu UserID' },
@@ -90,6 +90,14 @@ export async function GET(request: NextRequest) {
     }
 
     const total = mappedData.length;
+
+    if (exportExcel) {
+    return NextResponse.json({
+        success: true,
+        data: mappedData
+    });
+    }
+
     const start = (page - 1) * pageSize;
     const pagedData = mappedData.slice(start, start + pageSize);
 

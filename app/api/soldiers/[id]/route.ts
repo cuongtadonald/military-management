@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import sql from 'mssql';
-import { createChangeHistory } from '@/lib/audit';
+import { createChangeHistory, getUserScope } from '@/lib/audit';
 
 
 const FIELD_LABELS: Record<string, string> = {
@@ -153,6 +153,18 @@ export async function PUT(
 
     const pool = await getPool();
 
+    // Kiểm tra PermissionLevel - chỉ user có PermissionLevel = 2 mới được sửa
+    const modifiedBy = body.LastModifiedBy || body.UpdatedBy || body.ModifiedBy || body.userId;
+    if (modifiedBy) {
+      const userScope = await getUserScope(pool, modifiedBy);
+      if (!userScope || userScope.PermissionLevel !== 2) {
+        return NextResponse.json(
+          { success: false, message: 'Bạn không có quyền thực hiện thao tác này' },
+          { status: 403 }
+        );
+      }
+    }
+
     // Check xem quân nhân có tồn tại không
     const checkResult = await pool
       .request()
@@ -275,6 +287,15 @@ export async function DELETE(
     }
 
     const pool = await getPool();
+
+    // Kiểm tra PermissionLevel - chỉ user có PermissionLevel = 2 mới được xóa
+    const userScope = await getUserScope(pool, userId);
+    if (!userScope || userScope.PermissionLevel !== 2) {
+      return NextResponse.json(
+        { success: false, message: 'Bạn không có quyền thực hiện thao tác này' },
+        { status: 403 }
+      );
+    }
 
     // Check xem quân nhân có tồn tại không
     const checkResult = await pool

@@ -209,6 +209,11 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
       
       if (units.success) {
         setUnitTree(units.data || [])
+        console.log("Soldier UnitID:", soldier?.UnitID);
+console.log(
+  "Matched Unit:",
+  units.data?.find((u: any) => u.UnitID === soldier?.UnitID)
+);
       }
     } catch (error) {
       console.error("Lỗi khi tải dropdown:", error)
@@ -265,7 +270,10 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
         }
         
         form.setFieldsValue(formData)
-        
+        console.log("===== SOLDIER =====");
+console.log(soldier);
+console.log("RankID:", soldier.RankID);
+console.log("RankName:", soldier.RankName);
         // Set Province để filter Ward
         if (soldier.ProvinceID) {
           setSelectedProvinceId(soldier.ProvinceID)
@@ -610,17 +618,17 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
                 </Form.Item>
               </Col>
               <Col span={24}>
-                <Form.Item name="UnitID" label="Đơn vị" rules={[{ required: true, message: "Chọn đơn vị" }]}>
-                  <Select
-                    placeholder="Chọn đơn vị"
-                    showSearch
-                    optionFilterProp="label"
-                    options={unitTree.map((u: any) => ({
-                      value: u.UnitID,
-                      label: u.FullPathName || u.UnitName,
-                    }))}
-                  />
-                </Form.Item>
+                <Form.Item name="UnitID" label="Đơn vị">
+  <Select
+    showSearch
+    placeholder="Chọn đơn vị"
+    optionFilterProp="label"
+    options={unitTree.map((u: any) => ({
+      value: u.UnitID,
+      label: u.FullPathName,
+    }))}
+  />
+</Form.Item>
               </Col>
               <Col span={12}>
                 <Form.Item name="Hometown" label="Quê quán">

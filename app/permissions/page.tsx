@@ -1,12 +1,17 @@
 /**
  * File: app/permissions/page.tsx
- * Mô tả: Trang quản lý quyền chi tiết cho từng tính năng
- * Cập nhật: 2026-07-03
+ * Mô tả: Trang quản lý quyền - bật/tắt quyền theo PermissionLevel
+ * Cập nhật: 2026-07-21
+ * 
+ * Logic phân quyền:
+ *   - PermissionLevel = 2 → có quyền (Thêm, Sửa, Xóa, Nhập/Xuất Excel)
+ *   - PermissionLevel = 3 → bị giới hạn quyền (ẩn toàn bộ chức năng)
  * 
  * Thay đổi:
- *   - Dùng optimistic update (không reload trang khi bật/tắt)
- *   - Hiển thị loading state cho từng switch
- *   - Cập nhật UI ngay lập tức, rollback nếu API lỗi
+ *   - Không còn toggle từng feature riêng lẻ
+ *   - Chỉ 1 Toggle duy nhất: ON = PermissionLevel 2, OFF = PermissionLevel 3
+ *   - Cập nhật trực tiếp cột PermissionLevel trên bảng User
+ *   - Optimistic update, rollback nếu API lỗi
  */
 
 "use client"
@@ -37,7 +42,6 @@ interface UserPermission {
   UnitName?: string
   UnitLevel?: number
   UnitFullPath?: string
-  permissions: Record<string, boolean>
 }
 
 interface CurrentUser {
@@ -52,14 +56,13 @@ interface CurrentUser {
   PermissionLevel: number
 }
 
-// Danh sách tính năng
-const FEATURES = [
-  { code: 'canCreate', name: 'Thêm chiến sĩ', icon: '➕' },
-  { code: 'canEdit', name: 'Sửa chiến sĩ', icon: '✏️' },
-  { code: 'canDelete', name: 'Xoá chiến sĩ', icon: '🗑️' },
-  { code: 'canExport', name: 'Xuất Excel', icon: '📤' },
-  { code: 'canImport', name: 'Nhập Excel', icon: '📥' },
-]
+// ============================================================
+// CONSTANTS
+// ============================================================
+
+// PermissionLevel = 2 → có quyền, PermissionLevel = 3 → không quyền
+const PERMISSION_LEVEL_GRANTED = 2
+const PERMISSION_LEVEL_RESTRICTED = 3
 
 // ============================================================
 // MAIN COMPONENT
@@ -69,7 +72,6 @@ export default function PermissionsPage() {
   const router = useRouter()
   const { message, modal } = App.useApp()
   const { user, isLoading: authLoading } = useAuth()
-
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [subordinateUsers, setSubordinateUsers] = useState<UserPermission[]>([])
@@ -102,138 +104,109 @@ export default function PermissionsPage() {
     }
   }
 
-  // Cập nhật permission với optimistic update
+  // Bật/tắt quyền - cập nhật PermissionLevel trực tiếp
+  // Toggle ON → PermissionLevel = 2 (có quyền)
+  // Toggle OFF → PermissionLevel = 3 (bị giới hạn)
   const handleTogglePermission = useCallback(async (
     targetUserId: string,
-    featureCode: string,
-    isEnabled: boolean
+    enablePermission: boolean
   ) => {
-    // Hiển thị confirm khi tắt quyền
-    if (!isEnabled) {
+    if (!enablePermission) {
       modal.confirm({
         title: "Xác nhận tắt quyền",
-        content: `Bạn có chắc chắn muốn tắt quyền "${getFeatureName(featureCode)}" cho user này?`,
+        content: "Bạn có chắc chắn muốn tắt quyền cho user này? User sẽ bị ẩn các chức năng: Thêm, Sửa, Xóa, Nhập Excel, Xuất Excel.",
         okText: "Tắt",
         okType: "danger",
         cancelText: "Huỷ",
-        onOk: () => togglePermission(targetUserId, featureCode, isEnabled),
+        onOk: () => togglePermissionLevel(targetUserId, enablePermission),
       })
     } else {
-      togglePermission(targetUserId, featureCode, isEnabled)
+      togglePermissionLevel(targetUserId, enablePermission)
     }
   }, [modal])
 
-  // Bật/tắt TẤT CẢ quyền cùng lúc
-  const handleToggleAllPermissions = useCallback(async (
+  const togglePermissionLevel = async (
     targetUserId: string,
-    enableAll: boolean
+    enablePermission: boolean
   ) => {
-    const action = enableAll ? "bật" : "tắt"
-    modal.confirm({
-      title: `Xác nhận ${action} tất cả quyền`,
-      content: `Bạn có chắc chắn muốn ${action} TẤT CẢ quyền cho user này?`,
-      okText: enableAll ? "Bật tất cả" : "Tắt tất cả",
-      okType: enableAll ? "primary" : "danger",
-      cancelText: "Huỷ",
-      onOk: async () => {
-        // Cập nhật từng quyền một
-        for (const feature of FEATURES) {
-          await togglePermission(targetUserId, feature.code, enableAll)
-        }
-      },
-    })
-  }, [modal])
+    // Lấy user đăng nhập từ localStorage
+    const loggedInUser = JSON.parse(localStorage.getItem("user") || "{}")
 
-  const togglePermission = async (
-    targetUserId: string,
-    featureCode: string,
-    isEnabled: boolean
-  ) => {
-    // Optimistic update: cập nhật UI ngay lập tức
-    const switchKey = `${targetUserId}-${featureCode}`
-    setLoadingSwitches(prev => new Set(prev).add(switchKey))
+    if (!loggedInUser.userId) {
+      message.error("Không tìm thấy thông tin người đăng nhập")
+      return
+    }
 
-    // Lưu trạng thái cũ để rollback nếu lỗi
+    setLoadingSwitches(prev => new Set(prev).add(targetUserId))
+
     const oldUsers = [...subordinateUsers]
-    
-    // Cập nhật state ngay lập tức
-    setSubordinateUsers(prev => 
-      prev.map(user => {
-        if (user.UserID === targetUserId) {
+    const newPermissionLevel = enablePermission ? PERMISSION_LEVEL_GRANTED : PERMISSION_LEVEL_RESTRICTED
+
+    // Optimistic update - cập nhật PermissionLevel ngay lập tức
+    setSubordinateUsers(prev =>
+      prev.map(item => {
+        if (item.UserID === targetUserId) {
           return {
-            ...user,
-            permissions: {
-              ...user.permissions,
-              [featureCode]: isEnabled,
-            },
+            ...item,
+            PermissionLevel: newPermissionLevel,
           }
         }
-        return user
+        return item
       })
     )
 
     try {
       const response = await fetch("/api/permissions", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: {
+          "Content-Type": "application/json",
+        },
         body: JSON.stringify({
-          grantedByUserId: user?.userId,
+          grantedByUserId: loggedInUser.userId,
           grantedToUserId: targetUserId,
-          featureCode,
-          isEnabled,
+          featureCode: "all",
+          isEnabled: enablePermission,
         }),
       })
 
       const result = await response.json()
 
-      if (result.success) {
-        message.success(result.message)
-        
-        // Broadcast permission update qua BroadcastChannel
-        if (typeof window !== 'undefined' && 'BroadcastChannel' in window) {
-          const channel = new BroadcastChannel('permission-updates')
-          
-          // Gửi thông báo cho user bị ảnh hưởng
-          channel.postMessage({
-            type: 'permission_update',
-            userId: targetUserId,
-            permissions: {
-              ...subordinateUsers.find(u => u.UserID === targetUserId)?.permissions,
-              [featureCode]: isEnabled,
-            },
-          })
-          
-          channel.close()
-        }
-        
-        // Fallback: Dispatch custom event cho cùng tab
-        window.dispatchEvent(new CustomEvent('permission_update', { 
-          detail: { 
-            userId: targetUserId, 
-            permissions: { [featureCode]: isEnabled }
-          } 
-        }))
-      } else {
-        // Rollback nếu lỗi
-        setSubordinateUsers(oldUsers)
-        message.error(result.message || "Lỗi khi cập nhật")
+      if (!result.success) {
+        throw new Error(result.message)
       }
-    } catch (error) {
-      console.error("Lỗi:", error)
-      // Rollback nếu lỗi
+
+      message.success(
+        enablePermission
+          ? "Đã cấp quyền cho user."
+          : "Đã tắt quyền của user."
+      )
+
+      // Broadcast cập nhật để các tab khác biết permission đã thay đổi
+      if ("BroadcastChannel" in window) {
+        const channel = new BroadcastChannel("permission-updates")
+
+        channel.postMessage({
+          type: "permission_update",
+          userId: targetUserId,
+          permissionLevel: newPermissionLevel,
+        })
+
+        channel.close()
+      }
+    } catch (error: any) {
+      console.error(error)
+
+      // Rollback về trạng thái cũ
       setSubordinateUsers(oldUsers)
-      message.error("Lỗi kết nối server")
+
+      message.error(error.message || "Lỗi kết nối server")
     } finally {
       setLoadingSwitches(prev => {
         const next = new Set(prev)
-        next.delete(switchKey)
+        next.delete(targetUserId)
         return next
       })
     }
-  }
-
-  const getFeatureName = (code: string) => {
-    return FEATURES.find(f => f.code === code)?.name || code
   }
 
   // Kiểm tra xem user hiện tại có quyền quản lý không
@@ -314,58 +287,44 @@ export default function PermissionsPage() {
       ),
     },
     {
-      title: (
-        <div style={{ textAlign: "center", fontWeight: 600 }}>
-          Tất cả
-        </div>
-      ),
-      key: "all",
-      width: 100,
+      title: "Trạng thái quyền",
+      key: "permissionStatus",
+      width: 150,
       align: "center" as const,
       render: (_: any, record: UserPermission) => {
-        // Check nếu TẤT CẢ quyền đều bật
-        const allEnabled = FEATURES.every(f => record.permissions[f.code] === true)
-        const switchKey = `${record.UserID}-all`
-        const isLoading = FEATURES.some(f => loadingSwitches.has(`${record.UserID}-${f.code}`))
+        const hasPermission = record.PermissionLevel === PERMISSION_LEVEL_GRANTED
+        return (
+          <Tag color={hasPermission ? "green" : "red"}>
+            {hasPermission ? "Có quyền" : "Bị giới hạn"}
+          </Tag>
+        )
+      },
+    },
+    {
+      title: (
+        <div style={{ textAlign: "center", fontWeight: 600 }}>
+          Cấp quyền
+        </div>
+      ),
+      key: "toggle",
+      width: 120,
+      align: "center" as const,
+      render: (_: any, record: UserPermission) => {
+        // User có quyền khi PermissionLevel = 2
+        const hasPermission = record.PermissionLevel === PERMISSION_LEVEL_GRANTED
+        const isLoading = loadingSwitches.has(record.UserID)
         
         return (
           <Switch
-            checked={allEnabled}
+            checked={hasPermission}
             loading={isLoading}
-            onChange={(checked) => handleToggleAllPermissions(record.UserID, checked)}
+            onChange={(checked) => handleTogglePermission(record.UserID, checked)}
             checkedChildren="Bật"
             unCheckedChildren="Tắt"
           />
         )
       },
     },
-    // Các cột cho từng tính năng
-    ...FEATURES.map(feature => ({
-      title: (
-        <div style={{ textAlign: "center" }}>
-          <span style={{ marginRight: 4 }}>{feature.icon}</span>
-          {feature.name}
-        </div>
-      ),
-      key: feature.code,
-      width: 120,
-      align: "center" as const,
-      render: (_: any, record: UserPermission) => {
-        const isEnabled = record.permissions[feature.code] ?? false
-        const switchKey = `${record.UserID}-${feature.code}`
-        const isLoading = loadingSwitches.has(switchKey)
-        
-        return (
-          <Switch
-            checked={isEnabled}
-            loading={isLoading}
-            onChange={(checked) => handleTogglePermission(record.UserID, feature.code, checked)}
-            checkedChildren="Bật"
-            unCheckedChildren="Tắt"
-          />
-        )
-      },
-    })),
   ]
 
   return (
@@ -388,7 +347,7 @@ export default function PermissionsPage() {
                 Quản lý quyền truy cập
               </Typography.Title>
               <Typography.Text type="secondary">
-                Bật/tắt tính năng cho các tài khoản cấp dưới
+                Bật/tắt quyền cho các tài khoản cấp dưới (PermissionLevel 2/3)
               </Typography.Text>
             </div>
           </div>
@@ -446,13 +405,13 @@ export default function PermissionsPage() {
         {/* Hướng dẫn */}
         <Card size="small" style={{ marginTop: 16, background: "#e6f7ff", borderColor: "#91d5ff" }}>
           <Typography.Text strong style={{ color: "#0050b3" }}>
-            💡 Hướng dẫn:
+            Hướng dẫn:
           </Typography.Text>
           <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
-            <li>Bật/tắt công tắc để cấp hoặc thu hồi quyền cho từng user</li>
-            <li>Quyền sẽ được áp dụng <strong>ngay lập tức</strong> sau khi thay đổi (không cần reload)</li>
+            <li><strong>Bật</strong> công tắc (PermissionLevel = 2): User được quyền Thêm, Sửa, Xóa, Nhập Excel, Xuất Excel</li>
+            <li><strong>Tắt</strong> công tắc (PermissionLevel = 3): User bị ẩn toàn bộ các chức năng trên</li>
+            <li>Quyền được áp dụng <strong>ngay lập tức</strong> sau khi thay đổi (không cần reload)</li>
             <li>Chỉ tài khoản có PermissionLevel nhỏ hơn 3 mới có thể quản lý quyền</li>
-            <li>Tài khoản PermissionLevel từ 3 trở lên (Tiểu đoàn, Đại đội...) không thể quản lý quyền</li>
             <li>Hệ thống tự động lọc và chỉ hiển thị các tài khoản cấp dưới trực tiếp dựa theo UnitID</li>
           </ul>
         </Card>
