@@ -122,13 +122,13 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
         </Space>
       ),
     },
-    {
-      title: "Kích thước",
-      dataIndex: "FileSize",
-      key: "FileSize",
-      width: 120,
-      render: (size: number) => formatFileSize(size),
-    },
+    // {
+    //   title: "Kích thước",
+    //   dataIndex: "FileSize",
+    //   key: "FileSize",
+    //   width: 120,
+    //   render: (size: number) => formatFileSize(size),
+    // },
     {
       title: "Ngày tải lên",
       dataIndex: "UploadedDate",
@@ -185,9 +185,9 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
               <Descriptions.Item label="Ngày tạo">
                 {formatDate(documentInfo.CreatedDate)}
               </Descriptions.Item>
-              <Descriptions.Item label="Đơn vị">
+              {/* <Descriptions.Item label="Đơn vị">
                 {documentInfo.UnitID || "—"}
-              </Descriptions.Item>
+              </Descriptions.Item> */}
               <Descriptions.Item label="Trạng thái" span={2}>
                 {documentInfo.StatusName || "—"}
               </Descriptions.Item>

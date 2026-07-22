@@ -100,6 +100,8 @@ interface PermissionRequestRow {
   RequestByName?: string
   UnitName?: string
   Description?: string
+  ApprovedByName?: string
+  RejectReason?: string
 }
 
 interface HistoryDetailResponse {
@@ -290,27 +292,21 @@ export function ChangeReportTab() {
       if (result.success) {
         message.success(result.message || "Đã xử lý yêu cầu")
         if (action === "approve" && result.affectedUserId) {
-          const permissions = result.permissions || {
-            canCreate: true,
-            canEdit: true,
-            canDelete: true,
-            canExport: true,
-            canImport: true,
-            canImportExport: true,
-          }
+          // Gửi broadcast với permissionLevel để các tab cập nhật
+          const permissionLevel = result.permissionLevel || 2
 
           if (typeof window !== "undefined" && "BroadcastChannel" in window) {
             const channel = new BroadcastChannel("permission-updates")
             channel.postMessage({
               type: "permission_update",
               userId: result.affectedUserId,
-              permissions,
+              permissionLevel,
             })
             channel.close()
           }
 
           window.dispatchEvent(new CustomEvent("permission_update", {
-            detail: { userId: result.affectedUserId, permissions },
+            detail: { userId: result.affectedUserId, permissionLevel },
           }))
         }
         await refreshPermissions()
@@ -331,7 +327,7 @@ export function ChangeReportTab() {
       title: "Xác nhận phê duyệt yêu cầu",
       icon: <ExclamationCircleOutlined />,
       content: (
-        <Space direction="vertical" size={4}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
           <Typography.Text>Bạn có chắc chắn muốn phê duyệt yêu cầu mở quyền này?</Typography.Text>
           <Typography.Text type="secondary">
             Người yêu cầu: {record.RequestByName || "—"}
@@ -339,7 +335,7 @@ export function ChangeReportTab() {
           <Typography.Text type="secondary">
             Nội dung: {record.Title || record.Description || "Yêu cầu mở tất cả quyền chức năng"}
           </Typography.Text>
-        </Space>
+        </div>
       ),
       okText: "Phê duyệt",
       cancelText: "Huỷ",
@@ -453,42 +449,91 @@ export function ChangeReportTab() {
       title: "Nội dung yêu cầu",
       dataIndex: "Title",
       render: (_: string, record) => (
-        <Space direction="vertical" size={2}>
+        <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
           <Typography.Text>{record.Title}</Typography.Text>
           <Typography.Text type="secondary">{record.Description || "Yêu cầu mở tất cả quyền chức năng"}</Typography.Text>
           <Typography.Text type="secondary" style={{ fontSize: 12 }}>Mã: {getRequestId(record)}</Typography.Text>
-        </Space>
+        </div>
       ),
     },
     {
       title: "Xét duyệt",
-      width: 190,
+      width: 260,
       render: (_, record) => {
         const requestId = getRequestId(record)
-        const canReview = canReviewRequests && normalizeRequestStatus(record.StatusID) === "Pending"
-        if (!canReview) return <Typography.Text type="secondary">—</Typography.Text>
-        return (
-          <Space>
-            <Button
-              size="small"
-              type="primary"
-              icon={<CheckCircleOutlined />}
-              loading={reviewingRequestId === requestId}
-              onClick={() => handleApprove(record)}
-            >
-              Duyệt
-            </Button>
-            <Button
-              size="small"
-              danger
-              icon={<CloseCircleOutlined />}
-              loading={reviewingRequestId === requestId}
-              onClick={() => handleReject(record)}
-            >
-              Từ chối
-            </Button>
-          </Space>
-        )
+        const status = normalizeRequestStatus(record.StatusID)
+        
+        // Nếu đang chờ duyệt - hiển thị nút cho người có quyền
+        if (status === "Pending") {
+          const canReview = canReviewRequests
+          if (!canReview) return <Typography.Text type="secondary">Chờ cấp trên duyệt</Typography.Text>
+          return (
+            <Space>
+              <Button
+                size="small"
+                type="primary"
+                icon={<CheckCircleOutlined />}
+                loading={reviewingRequestId === requestId}
+                onClick={() => handleApprove(record)}
+              >
+                Duyệt
+              </Button>
+              <Button
+                size="small"
+                danger
+                icon={<CloseCircleOutlined />}
+                loading={reviewingRequestId === requestId}
+                onClick={() => handleReject(record)}
+              >
+                Từ chối
+              </Button>
+            </Space>
+          )
+        }
+        
+        // Nếu đã duyệt
+        if (status === "Approved") {
+          return (
+            <div style={{ fontSize: 12 }}>
+              <Typography.Text type="success" style={{ color: "#52c41a", fontWeight: 500 }}>
+                ✓ Đã duyệt
+              </Typography.Text>
+              {record.ApprovedByName && (
+                <div style={{ color: "#8c8c8c" }}>
+                  Bởi: {record.ApprovedByName}
+                </div>
+              )}
+              {record.ApprovedDate && (
+                <div style={{ color: "#8c8c8c" }}>
+                  {formatDate(record.ApprovedDate)}
+                </div>
+              )}
+            </div>
+          )
+        }
+        
+        // Nếu đã từ chối
+        if (status === "Rejected") {
+          return (
+            <div style={{ fontSize: 12 }}>
+              <Typography.Text type="danger" style={{ color: "#ff4d4f", fontWeight: 500 }}>
+                ✗ Đã từ chối
+              </Typography.Text>
+              {record.ApprovedByName && (
+                <div style={{ color: "#8c8c8c" }}>
+                  Bởi: {record.ApprovedByName}
+                </div>
+              )}
+              {record.RejectReason && (
+                <div style={{ color: "#8c8c8c", fontStyle: "italic" }}>
+                  Lý do: {record.RejectReason}
+                </div>
+              )}
+            </div>
+          )
+        }
+        
+        return <Typography.Text type="secondary">—</Typography.Text>
       },
     },
   ], [canReviewRequests, reviewingRequestId])
@@ -509,12 +554,12 @@ export function ChangeReportTab() {
         items={[
           {
             key: "history",
-            label: `Lịch sử thay đổi (${history.length})`,
+            label: `Lịch sử thay đổi (${history.filter((item) => ["INSERT", "UPDATE", "DELETE"].includes(item.ChangeType)).length})`,
             children: (
               <Table<ChangeHistoryRow>
                 rowKey={(record) => getHistoryId(record)}
                 columns={historyColumns}
-                dataSource={history}
+                dataSource={history.filter((item) => ["INSERT", "UPDATE", "DELETE"].includes(item.ChangeType))}
                 loading={historyLoading}
                 pagination={{ pageSize: 20, showSizeChanger: true }}
               />
@@ -522,7 +567,7 @@ export function ChangeReportTab() {
           },
           {
             key: "permissionRequests",
-            label: `Yêu cầu mở quyền (${permissionRequests.filter((item) => normalizeRequestStatus(item.StatusID) === "Pending").length})`,
+            label: `Yêu cầu mở quyền (${permissionRequests.length})`,
             children: (
               <Table<PermissionRequestRow>
                 rowKey={(record) => getRequestId(record)}
@@ -543,7 +588,7 @@ export function ChangeReportTab() {
         footer={<Button onClick={() => setDetailModalOpen(false)}>Đóng</Button>}
         width={1000}
       >
-        <Space direction="vertical" style={{ width: "100%" }} size="middle">
+        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
           {selectedHistory?.header && (
             <Card size="small">
               <Typography.Text strong>{selectedHistory.header.Description || selectedHistory.header.ChangeReason}</Typography.Text>
@@ -574,7 +619,7 @@ export function ChangeReportTab() {
               { title: "Thông tin mới", dataIndex: "NewValue", width: 180, render: displayValue },
             ]}
           />
-        </Space>
+        </div>
       </Modal>
 
       <Modal

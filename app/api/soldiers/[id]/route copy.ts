@@ -11,7 +11,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { getPool } from '@/lib/db';
 import sql from 'mssql';
-import { createChangeHistory } from '@/lib/audit';
+import { createChangeHistory, getUserScope } from '@/lib/audit';
 
 
 const FIELD_LABELS: Record<string, string> = {
@@ -99,12 +99,6 @@ export async function GET(
       .input('Mode', sql.TinyInt, 1)
       .execute('W01P0003');
 
-    // Gọi SP W01P0003 Mode 2 - Lịch sử thay đổi
-    const historyResult = await pool.request()
-      .input('SoldierID', sql.VarChar, id)
-      .input('Mode', sql.TinyInt, 2)
-      .execute('W01P0003');
-
     // Gọi SP W01P0003 Mode 3 - Quá trình công tác
     const workProcessResult = await pool.request()
       .input('SoldierID', sql.VarChar, id)
@@ -122,7 +116,6 @@ export async function GET(
       data: {
         ...soldierDetail,
         family: familyResult.recordset || [],
-        history: historyResult.recordset || [],
         workProcesses: workProcessResult.recordset || [],
         trainingProcesses: trainingProcessResult.recordset || [],
       },
@@ -159,6 +152,18 @@ export async function PUT(
     }
 
     const pool = await getPool();
+
+    // Kiểm tra PermissionLevel - chỉ user có PermissionLevel = 2 mới được sửa
+    const modifiedBy = body.LastModifiedBy || body.UpdatedBy || body.ModifiedBy || body.userId;
+    if (modifiedBy) {
+      const userScope = await getUserScope(pool, modifiedBy);
+      if (!userScope || userScope.PermissionLevel !== 2) {
+        return NextResponse.json(
+          { success: false, message: 'Bạn không có quyền thực hiện thao tác này' },
+          { status: 403 }
+        );
+      }
+    }
 
     // Check xem quân nhân có tồn tại không
     const checkResult = await pool
@@ -282,6 +287,15 @@ export async function DELETE(
     }
 
     const pool = await getPool();
+
+    // Kiểm tra PermissionLevel - chỉ user có PermissionLevel = 2 mới được xóa
+    const userScope = await getUserScope(pool, userId);
+    if (!userScope || userScope.PermissionLevel !== 2) {
+      return NextResponse.json(
+        { success: false, message: 'Bạn không có quyền thực hiện thao tác này' },
+        { status: 403 }
+      );
+    }
 
     // Check xem quân nhân có tồn tại không
     const checkResult = await pool

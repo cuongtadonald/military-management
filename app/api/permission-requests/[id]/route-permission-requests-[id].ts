@@ -109,7 +109,6 @@ export async function PUT(
 
     const requestResult = await pool.request()
       .input('RequestID', sql.VarChar, id)
-      .input('ApprovedBy', sql.VarChar, approvedBy)
       .query(`
         SELECT PR.RequestID, PR.Title, PR.Content, PR.RequestBy, PR.StatusID,
                requester.UnitID AS RequestByUnitID,
@@ -142,14 +141,19 @@ export async function PUT(
     }
 
     if (action === 'approve') {
-      // Cập nhật PermissionLevel = 2 (có quyền) cho user được duyệt
-      const permissionResult = await setUserPermission(
-        pool,
-        approvedBy,
-        permissionRequest.RequestBy,
-        "all",
-        true
-      )
+      const grantedPermissions: Record<string, boolean> = {}
+      const changedDetails = []
+      for (const code of ALL_PERMISSION_FEATURES) {
+        const result = await setUserPermission(pool, approvedBy, permissionRequest.RequestBy, code, true)
+        grantedPermissions[code] = true
+        changedDetails.push({
+          soldierId: null,
+          fieldName: code,
+          fieldDisplayName: FEATURE_LABELS[code] || code,
+          oldValue: result.oldValue,
+          newValue: true,
+        })
+      }
 
       await pool.request()
         .input('RequestID', sql.VarChar, id)
@@ -170,13 +174,7 @@ export async function PUT(
           changeReason: `Phê duyệt yêu cầu mở tất cả quyền ${permissionRequest.Title}`,
           description: `Mở tất cả quyền chức năng cho user ${permissionRequest.RequestBy}`,
           totalSoldier: 0,
-          details: [{
-            soldierId: null,
-            fieldName: 'PermissionLevel',
-            fieldDisplayName: 'Mức phân quyền',
-            oldValue: permissionResult.oldValue,
-            newValue: true,
-          }],
+          details: changedDetails,
         })
       } catch (auditError) {
         console.error('Đã phê duyệt yêu cầu nhưng lỗi khi ghi lịch sử:', auditError)
@@ -186,7 +184,7 @@ export async function PUT(
         success: true,
         message: 'Đã phê duyệt và mở tất cả quyền',
         affectedUserId: permissionRequest.RequestBy,
-        permissionLevel: 2,
+        permissions: grantedPermissions,
       })
     }
 
@@ -223,17 +221,8 @@ export async function PUT(
     }
 
     return NextResponse.json({ success: true, message: 'Đã từ chối yêu cầu' })
-  } catch (error: any) {
+  } catch (error) {
     console.error('Lỗi khi xét duyệt yêu cầu mở quyền:', error)
-    console.error('Error message:', error?.message)
-    console.error('Error detail:', error?.info || error?.originalError || error)
-    return NextResponse.json(
-      { 
-        success: false, 
-        message: error?.message || 'Lỗi khi xét duyệt yêu cầu mở quyền',
-        detail: error?.info?.message || error?.originalError?.message || null
-      }, 
-      { status: 500 }
-    )
+    return NextResponse.json({ success: false, message: 'Lỗi khi xét duyệt yêu cầu mở quyền' }, { status: 500 })
   }
 }

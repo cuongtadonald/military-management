@@ -225,13 +225,13 @@ export function DocumentListPage({ open, onClose }: DocumentListPageProps) {
       width: 130,
       render: (date: string) => formatDate(date),
     },
-    {
-      title: "Đơn vị",
-      dataIndex: "UnitID",
-      key: "UnitID",
-      width: 200,
-      render: (text: string) => text || "—",
-    },
+    // {
+    //   title: "Đơn vị",
+    //   dataIndex: "UnitID",
+    //   key: "UnitID",
+    //   width: 200,
+    //   render: (text: string) => text || "—",
+    // },
     {
       title: "Trạng thái",
       dataIndex: "StatusName",

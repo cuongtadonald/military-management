@@ -108,18 +108,6 @@ interface TrainingProcess {
   Description?: string
 }
 
-interface SoldierHistory {
-  HistoryID: string
-  FieldName: string
-  FieldDisplayName?: string
-  OldValue?: string | null
-  NewValue?: string | null
-  ChangeType?: string
-  ChangeReason?: string
-  ChangeDate?: string
-  ChangedBy?: string
-}
-
 // Interface cho User info
 interface UserInfo {
   userId: string
@@ -133,7 +121,6 @@ interface SoldierData {
   family: FamilyMember[]
   workProcesses: WorkProcess[]
   trainingProcesses: TrainingProcess[]
-  history: SoldierHistory[]
 }
 
 // ============================================================
@@ -216,13 +203,12 @@ export default function SoldierDetailPage() {
       const result = await response.json()
 
       if (result.success) {
-        const { family, workProcesses, trainingProcesses, history, ...soldier } = result.data
+        const { family, workProcesses, trainingProcesses, ...soldier } = result.data
         setData({
           soldier,
           family: family || [],
           workProcesses: workProcesses || [],
           trainingProcesses: trainingProcesses || [],
-          history: history || [],
         })
 
         // Load thông tin user tạo (nếu có)
@@ -316,7 +302,7 @@ export default function SoldierDetailPage() {
     )
   }
 
-  const { soldier, family, workProcesses, trainingProcesses, history } = data
+  const { soldier, family, workProcesses, trainingProcesses } = data
 
   // ============================================================
   // HELPER FUNCTIONS
@@ -332,36 +318,27 @@ export default function SoldierDetailPage() {
     }
   }
 
-  const formatDateTime = (dateStr?: string) => {
-    if (!dateStr) return "—"
-    try {
-      return new Date(dateStr).toLocaleString("vi-VN")
-    } catch {
-      return dateStr
-    }
-  }
-
   const formatGender = (gender: number) => gender === 1 ? "Nam" : "Nữ"
 
-  // Render đơn vị theo hierarchy - cấp trên nhỏ, hiện tại bình thường
-  const renderUnitHierarchy = (fullPath: string, unitName: string) => {
-    if (!fullPath) return <Typography.Text>{unitName}</Typography.Text>
-    const parts = fullPath.split(',')
-    if (parts.length <= 1) return <Typography.Text>{fullPath}</Typography.Text>
+  // Render cột đơn vị với hierarchy - cấp trên nhỏ, hiện tại bình thường
+  const renderUnitHierarchy = (unitFullPath: string, unitName: string) => {
+    if (!unitFullPath) return unitName || ""
+    const parts = unitFullPath.split(',')
+    if (parts.length <= 1) return <Typography.Text>{unitName || unitFullPath}</Typography.Text>
 
     const currentUnit = parts[parts.length - 1]
     const parentUnits = parts.slice(0, -1).join(', ')
 
     return (
-      <div style={{ lineHeight: 1.5 }}>
+      <div>
         {parentUnits && (
-          <div style={{ fontSize: 12, color: "#8c8c8c" }}>
+          <Typography.Text style={{ fontSize: 11, color: "#8c8c8c", display: 'block', lineHeight: 1.2 }}>
             {parentUnits}
-          </div>
+          </Typography.Text>
         )}
-        <div style={{ fontWeight: 500, color: "#262626" }}>
+        <Typography.Text style={{ fontWeight: 500, display: 'block', lineHeight: 1.3 }}>
           {currentUnit}
-        </div>
+        </Typography.Text>
       </div>
     )
   }
@@ -426,71 +403,6 @@ export default function SoldierDetailPage() {
     { title: "Hình thức đào tạo", dataIndex: "TrainingType", width: 180, render: (value) => value || "—" },
     { title: "Bằng cấp, chứng chỉ", dataIndex: "Certificate", width: 220, render: (value) => value || "—" },
     { title: "Ghi chú", dataIndex: "Description", width: 220, render: (value) => value || "—" },
-  ]
-
-  const changeTypeLabels: Record<string, string> = {
-    INSERT: "Thêm mới",
-    UPDATE: "Cập nhật",
-    DELETE: "Xoá",
-    APPROVE: "Phê duyệt",
-    REJECT: "Từ chối",
-  }
-
-  const changeTypeColors: Record<string, string> = {
-    INSERT: "green",
-    UPDATE: "blue",
-    DELETE: "red",
-    APPROVE: "green",
-    REJECT: "red",
-  }
-
-  const historyColumns: ColumnsType<SoldierHistory> = [
-    {
-      title: "Thời gian",
-      dataIndex: "ChangeDate",
-      width: 170,
-      render: formatDateTime,
-    },
-    // {
-    //   title: "Loại thay đổi",
-    //   dataIndex: "ChangeType",
-    //   width: 140,
-    //   render: (value: string) => (
-    //     <Tag color={changeTypeColors[value] || "default"}>
-    //       {changeTypeLabels[value] || value || "—"}
-    //     </Tag>
-    //   ),
-    // },
-    {
-      title: "Trường thay đổi",
-      dataIndex: "FieldDisplayName",
-      width: 180,
-      render: (value: string, record) => value || record.FieldName || "—",
-    },
-    {
-      title: "Giá trị cũ",
-      dataIndex: "OldValue",
-      width: 220,
-      render: (value: string | null) => value || "—",
-    },
-    {
-      title: "Giá trị mới",
-      dataIndex: "NewValue",
-      width: 220,
-      render: (value: string | null) => value || "—",
-    },
-    // {
-    //   title: "Lý do",
-    //   dataIndex: "ChangeReason",
-    //   width: 240,
-    //   render: (value: string) => value || "—",
-    // },
-    {
-      title: "Người thay đổi",
-      dataIndex: "ChangedBy",
-      width: 180,
-      render: (value: string) => value || "—",
-    },
   ]
 
   // ============================================================
@@ -657,20 +569,11 @@ export default function SoldierDetailPage() {
       key: "history",
       label: (
         <span>
-          <HistoryOutlined /> Lịch sử ({history.length})
+          <HistoryOutlined /> Lịch sử
         </span>
       ),
       children: (
-        <Table<SoldierHistory>
-          rowKey={(record, index) => record.HistoryID || `history-${index}`}
-          columns={historyColumns}
-          dataSource={history}
-          pagination={{ pageSize: 10, showTotal: (total) => `Tổng ${total} lịch sử thay đổi` }}
-          size="small"
-          bordered
-          scroll={{ x: 1350 }}
-          locale={{ emptyText: "Chưa có lịch sử thay đổi" }}
-        />
+        <Empty description="Chức năng đang phát triển" image={Empty.PRESENTED_IMAGE_SIMPLE} />
       ),
     },
   ]

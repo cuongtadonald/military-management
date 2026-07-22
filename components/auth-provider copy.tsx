@@ -57,6 +57,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [isLoading, setIsLoading] = useState(true)
   const channelRef = useRef<BroadcastChannel | null>(null)
 
+  // Load permission từ API
+  const loadPermissions = useCallback(async (userId: string): Promise<Record<string, boolean>> => {
+    try {
+      const response = await fetch(`/api/permissions?userId=${userId}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        return result.data || {}
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải permission:", error)
+    }
+    return {}
+  }, [])
+
   // Refresh permission cho user hiện tại - reload permissionLevel từ server
   const refreshPermissions = useCallback(async () => {
     if (!user?.userId) return

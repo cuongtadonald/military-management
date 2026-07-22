@@ -76,56 +76,14 @@ export async function GET(request: NextRequest) {
     }
 
     const pool = await getPool()
-    await ensurePermissionRequestStatuses(pool)
-
-    // Gọi SP để lấy danh sách yêu cầu (filter theo HierarchyPath)
-    const spResult = await pool.request()
+    const result = await pool.request()
       .input('UserID', sql.VarChar, userId)
       .input('Mode', sql.TinyInt, 1)
       .execute('W01P0005')
 
-    const requests = spResult.recordset || []
-
-    // Lấy thêm tên người duyệt và lý do từ chối trong 1 query
-    const requestIdList = requests.map(r => `'${r.ID}'`).join(',')
-    
-    if (requestIdList.length > 0) {
-      const detailsResult = await pool.request()
-        .query(`
-          SELECT 
-            PR.RequestID,
-            PR.RejectReason,
-            U.FullName AS ApprovedByName
-          FROM PermissionRequest PR
-          LEFT JOIN [User] U ON PR.ApprovedBy = U.UserID
-          WHERE PR.RequestID IN (${requestIdList})
-        `)
-      
-      // Map kết quả
-      const detailsMap = new Map()
-      detailsResult.recordset.forEach(r => {
-        detailsMap.set(r.RequestID, {
-          ApprovedByName: r.ApprovedByName,
-          RejectReason: r.RejectReason
-        })
-      })
-
-      // Gán vào từng request
-      requests.forEach(r => {
-        const details = detailsMap.get(r.ID)
-        if (details) {
-          r.ApprovedByName = details.ApprovedByName
-          r.RejectReason = details.RejectReason
-        } else {
-          r.ApprovedByName = null
-          r.RejectReason = null
-        }
-      })
-    }
-
     return NextResponse.json({
       success: true,
-      data: requests.map((row: any) => ({
+      data: (result.recordset || []).map((row: any) => ({
         ...row,
         contentData: {
           featureCodes: ALL_PERMISSION_FEATURES,
@@ -134,7 +92,7 @@ export async function GET(request: NextRequest) {
       })),
     })
   } catch (error) {
-    console.error('Lỗi khi tải yêu cầu mở quyền:', error)
+    console.error('Lỗi khi gọi W01P0005 Mode 1:', error)
     return NextResponse.json({ success: false, message: 'Lỗi khi tải yêu cầu mở quyền' }, { status: 500 })
   }
 }

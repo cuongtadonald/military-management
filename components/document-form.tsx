@@ -231,7 +231,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
           body: JSON.stringify({
             DocumentName: values.DocumentName,
             UnitID: values.UnitID,
-            StatusID: values.StatusID || 'ST001',
+            StatusID: values.StatusID || 'Chọn trạng thái',
             Content: values.Content || '',
             CreatedBy: user?.userId,
             attachments: newAttachments,
@@ -301,7 +301,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
           form={form}
           layout="vertical"
           initialValues={{
-            StatusID: "ST001",
+            StatusID: "Chọn trạng thái",
           }}
         >
           <Row gutter={16}>
@@ -317,7 +317,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
+            {/* <Col span={12}>
               <Form.Item 
                 name="UnitID" 
                 label="Đơn vị" 
@@ -333,7 +333,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
                   }))}
                 />
               </Form.Item>
-            </Col>
+            </Col> */}
             <Col span={12}>
               <Form.Item name="StatusID" label="Trạng thái">
                 <Select options={STATUS_OPTIONS} placeholder="Chọn trạng thái" />

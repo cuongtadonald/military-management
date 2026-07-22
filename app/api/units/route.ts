@@ -27,8 +27,6 @@ export async function GET(request: NextRequest) {
       );
     }
 
-    console.log('🔍 Lấy cây đơn vị cho user:', userId);
-
     const pool = await getPool();
 
     // Lấy thông tin user để xác định đơn vị gốc
@@ -68,7 +66,6 @@ export async function GET(request: NextRequest) {
         ORDER BY HierarchyPath, UnitLevel, UnitName
       `);
 
-    console.log('✅ Tìm thấy', unitsResult.recordset.length, 'đơn vị');
 
     return NextResponse.json({
       success: true,
@@ -192,7 +189,6 @@ export async function POST(request: NextRequest) {
         VALUES (@unitId, @unitName, @unitShortName, @unitLevel, @parentUnitId, @hierarchyPath, @fullPathName)
       `);
 
-    console.log('✅ Đã thêm đơn vị:', unitName);
 
     return NextResponse.json({
       success: true,

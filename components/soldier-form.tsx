@@ -201,19 +201,38 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
         fetch(`/api/units?userId=${userId}`).then(r => r.json())
       ])
 
-      setRankOptions(ranks.map((r: any) => ({ value: r.RankID, label: r.RankName })))
-      setProvinceOptions(provinces.map((p: any) => ({ value: p.ProvinceID, label: p.ProvinceName })))
-      setWardOptions(wards)
-      setReligionOptions(religions.map((r: any) => ({ value: r.ReligionID, label: r.ReligionName })))
-      setMaritalOptions(maritals.map((m: any) => ({ value: m.MaritalStatusID, label: m.MaritalStatusName })))
+      setRankOptions(
+  (ranks || []).map((r: any) => ({
+    value: r.RankID,
+    label: r.RankName,
+  }))
+);
+
+setProvinceOptions(
+  (provinces || []).map((p: any) => ({
+    value: p.ProvinceID,
+    label: p.ProvinceName,
+  }))
+);
+
+setWardOptions(wards || []);
+
+setReligionOptions(
+  (religions || []).map((r: any) => ({
+    value: r.ReligionID,
+    label: r.ReligionName,
+  }))
+);
+
+setMaritalOptions(
+  (maritals || []).map((m: any) => ({
+    value: m.MaritalStatusID,
+    label: m.MaritalStatusName,
+  }))
+);
       
       if (units.success) {
         setUnitTree(units.data || [])
-        console.log("Soldier UnitID:", soldier?.UnitID);
-console.log(
-  "Matched Unit:",
-  units.data?.find((u: any) => u.UnitID === soldier?.UnitID)
-);
       }
     } catch (error) {
       console.error("Lỗi khi tải dropdown:", error)
@@ -221,14 +240,16 @@ console.log(
   }
 
   const fetchDropdown = async (mode: string) => {
-    try {
-      const response = await fetch(`/api/dropdowns?userId=${user?.userId}&mode=${mode}`)
-      const result = await response.json()
-      return result.success ? result.data : []
-    } catch {
-      return []
-    }
+  try {
+    const response = await fetch(`/api/dropdowns?userId=${user?.userId}&mode=${mode}`);
+    const result = await response.json();
+
+    return Array.isArray(result.data) ? result.data : [];
+  } catch (err) {
+    console.error(mode, err);
+    return [];
   }
+};
 
   // ============================================================
   // FILTER WARD THEO PROVINCE
@@ -270,10 +291,6 @@ console.log(
         }
         
         form.setFieldsValue(formData)
-        console.log("===== SOLDIER =====");
-console.log(soldier);
-console.log("RankID:", soldier.RankID);
-console.log("RankName:", soldier.RankName);
         // Set Province để filter Ward
         if (soldier.ProvinceID) {
           setSelectedProvinceId(soldier.ProvinceID)
@@ -401,7 +418,6 @@ console.log("RankName:", soldier.RankName);
       setLoading(false)
     }
   }
-
   // ============================================================
   // FAMILY MEMBERS CRUD
   // ============================================================

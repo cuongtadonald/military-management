@@ -23,6 +23,7 @@ export async function GET(request: NextRequest) {
 const mode = searchParams.get('mode') || '';
 
 const validModes = [
+  'UNIT',
   'RANK',
   'PROVINCE',
   'WARD',
@@ -55,19 +56,12 @@ if (!validModes.includes(mode)) {
         .input('UserID', sql.VarChar, userId)
         .input('Mode', sql.VarChar, mode)
         .execute('W01P0002');
-    if (mode === 'UNIT') {
-      return NextResponse.json({
-        success: true,
-        data: result.recordset.map(item => ({
-          value: item.UnitID,
-          label: item.UnitFullPathName
-        })),
-      });
-    }
+        const data = result.recordset ?? [];
+        //console.log(result.recordset);
     return NextResponse.json({
-      success: true,
-      data: result.recordset,
-    });
+  success: true,
+  data,
+});
   } catch (error) {
     console.error('Lỗi khi lấy dropdown:', error);
     return NextResponse.json(
