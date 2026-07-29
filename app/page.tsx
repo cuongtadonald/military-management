@@ -1,957 +1,452 @@
 /**
  * File: app/page.tsx
- * Mô tả: Trang chính - Dashboard quản lý hồ sơ quân nhân
- * Cập nhật: 2026-07-03
- * Thay đổi:
- *   - Thêm tìm kiếm theo HierarchyPath/FullPathName (filter trực tiếp)
- *   - TreeSelect tìm theo tên hiển thị cơ cấu đơn vị (filter theo UnitID)
- *   - Hiển thị cột đơn vị theo hierarchy (cấp trên nhỏ, hiện tại bình thường)
- *   - Cột Ngày sinh và Ngày nhập ngũ hiển thị đầy đủ dd/mm/yyyy
- *   - Tích hợp form Thêm/Sửa chiến sĩ
- *   - Permission check cho các nút Thêm/Sửa/Xoá/Xuất/Nhập
+ * Mô tả: Trang Tổng quan (Dashboard Overview) - theo thiết kế mới
  */
 
 "use client"
 
-import { useMemo, useState, useRef, useEffect, useCallback } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { App, Avatar, Button, Card, Col, Input, Layout, Modal, Row, Space, Table, Tabs, Tooltip, Typography, TreeSelect } from "antd"
-import type { ColumnsType } from "antd/es/table"
-import { DeleteOutlined, EditOutlined, EyeOutlined, ExclamationCircleFilled, FileExcelOutlined, PlusOutlined, SearchOutlined, UploadOutlined, FolderOutlined, SendOutlined } from "@ant-design/icons"
+import { Card, Col, Layout, Row, Statistic, Typography, Avatar, Badge } from "antd"
+import {
+  TeamOutlined,
+  SafetyCertificateOutlined,
+  UserDeleteOutlined,
+  FileSearchOutlined,
+  UserAddOutlined,
+  UploadOutlined,
+  BarChartOutlined,
+  HistoryOutlined,
+  FolderOutlined,
+  ArrowRightOutlined,
+  CalendarOutlined,
+  SyncOutlined,
+  CheckCircleOutlined,
+  ClockCircleOutlined,
+} from "@ant-design/icons"
 
-import { AppHeader } from "@/components/app-header"
-import { StatusTag } from "@/components/status-tag"
-import { SoldierForm } from "@/components/soldier-form"
-import { ChangeReportTab } from "@/components/change-report-tab"
+import { PageLayout } from "@/components/page-layout"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
-
-const { Content } = Layout
 
 // ============================================================
 // INTERFACES
 // ============================================================
 
-interface SoldierData {
-  SoldierID: string
-  FullName: string
-  DateOfBirth: string
-  Gender: number
-  CitizenID: string
-  UnitID: string
-  UnitName: string
-  UnitShortName?: string
-  UnitHierarchyPath?: string  // HierarchyPath của đơn vị chiến sĩ
-  UnitFullPath: string        // FullPathName: "Quân khu 7,Sư đoàn Bộ binh 5,Phòng Tham mưu"
-  Position: string
-  RankName: string
-  StatusName: string
-  Ethnicity: string
-  ReligionName: string
-  MaritalStatusName: string
-  EducationLevel: string
-  Specialization: string
-  PoliticalLevel: string
-  BloodType: string
-  HealthClassification: string
-  Height: number
-  Weight: number
-  BloodPressure: string
-  Hometown: string
-  Address: string
-  WardName: string
-  ProvinceName: string
-  EnlistmentDate: string
-  PartyJoinDate?: string
-  YouthUnionJoinDate?: string
-  PhotoPath: string
-  FileID: string
-  CreatedDate: string
-  CreatedBy: string
-  LastModifiedDate: string
-  LastModifiedBy: string
+interface DashboardStats {
+  total: number
+  active: number
+  discharged: number
+  pending: number
 }
 
-// TreeSelect dùng UnitID làm value (filter theo cơ cấu đơn vị)
-interface UnitTreeNode {
-  title: string
-  value: string           // UnitID
-  key: string             // UnitID
-  children?: UnitTreeNode[]
-  isLeaf?: boolean
-  unitId: string
+interface RankStat {
+  name: string
+  count: number
+  color: string
 }
 
-// ============================================================
-// CUSTOM HOOKS
-// ============================================================
-
-function useDebounce<T>(value: T, delay: number): T {
-  const [debouncedValue, setDebouncedValue] = useState<T>(value)
-
-  useEffect(() => {
-    const handler = setTimeout(() => {
-      setDebouncedValue(value)
-    }, delay)
-
-    return () => {
-      clearTimeout(handler)
-    }
-  }, [value, delay])
-
-  return debouncedValue
+interface UnitStat {
+  name: string
+  count: number
+  color: string
 }
 
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
 
-export default function DashboardPage() {
+export default function DashboardOverviewPage() {
   const router = useRouter()
-  const { message } = App.useApp()
-  const { user, isLoading, hasPermission } = useAuth()
+  const { user, isLoading } = useAuth()
   const { pendingCount } = useChangeLog()
-  const fileInputRef = useRef<HTMLInputElement>(null)
 
-  // State cho dữ liệu soldier
-  const [activeData, setActiveData] = useState<SoldierData[]>([])
-  const [dischargedData, setDischargedData] = useState<SoldierData[]>([])
-  const [loading, setLoading] = useState(true)
-  
-  // Tìm kiếm theo tên, CCCD, mã chiến sĩ
-  const [search, setSearch] = useState("")
-  
-  // Tìm kiếm theo HierarchyPath/FullPathName (filter trực tiếp trên danh sách)
-  const [unitPathSearch, setUnitPathSearch] = useState("")
-  
-  // TreeSelect - chọn đơn vị từ cơ cấu (filter theo UnitID)
-  const [selectedUnitId, setSelectedUnitId] = useState<string | undefined>(undefined)
-  
-  // State cho TreeSelect
-  const [unitTreeData, setUnitTreeData] = useState<UnitTreeNode[]>([])
-  const [unitTreeLoading, setUnitTreeLoading] = useState(false)
-  const [unitSearchText, setUnitSearchText] = useState("")
-  const [expandedUnitKeys, setExpandedUnitKeys] = useState<string[]>([])
+  const [stats, setStats] = useState<DashboardStats>({ total: 0, active: 0, discharged: 0, pending: 0 })
+  const [rankStats, setRankStats] = useState<RankStat[]>([])
+  const [unitStats, setUnitStats] = useState<UnitStat[]>([])
+  const [monthlySeries, setMonthlySeries] = useState<{ month: string; total: number; recruited: number; discharged: number }[]>([])
 
-  // Pagination server-side cho từng tab
-  const [activePagination, setActivePagination] = useState({ current: 1, pageSize: 20, total: 0 })
-  const [dischargedPagination, setDischargedPagination] = useState({ current: 1, pageSize: 20, total: 0 })
+  // Palette dùng để tô donut/thanh ngang theo thứ tự cố định
+  const RANK_PALETTE = ["#1a3a5c", "#2e7d32", "#00796b", "#ef6c00", "#5c6bc0", "#8e24aa", "#6b8e23", "#3a5f3a"]
+  const UNIT_PALETTE = ["#2e5c2e", "#4a7c4a", "#1a3a5c", "#6b8e23", "#3a5f3a", "#00796b", "#5c6bc0", "#8e24aa"]
 
-  // Debounce cho ô tìm kiếm chính và HierarchyPath/FullPathName
-  const debouncedSearch = useDebounce(search, 400)
-  const debouncedUnitPathSearch = useDebounce(unitPathSearch, 400)
-  // Debounce cho TreeSelect search
-  const debouncedTreeSearchText = useDebounce(unitSearchText, 400)
-
-  // State cho tabs và form
-  const [activeTab, setActiveTab] = useState<"active" | "discharged" | "changelog">("active")
-  // State cho form Thêm/Sửa chiến sĩ
-  const [soldierFormOpen, setSoldierFormOpen] = useState(false)
-  const [editingSoldier, setEditingSoldier] = useState<SoldierData | null>(null)
-  
-  // Mở form Thêm mới
-  const handleAddSoldier = () => {
-    setEditingSoldier(null)
-    setSoldierFormOpen(true)
-  }
-  
-  // Mở form Sửa
-  const handleEditSoldier = (soldier: SoldierData) => {
-    setEditingSoldier(soldier)
-    setSoldierFormOpen(true)
-  }
-  
-  // Callback khi thêm/sửa thành công
-  const handleFormSuccess = () => {
-    const mode = activeTab === "discharged" ? '1' : '0'
-    void loadSoldiers(mode)
-  }
-
-  const currentUser = user
-
-  // ============================================================
-  // DATA FETCHING
-  // ============================================================
-
-  const loadSoldiers = useCallback(async (mode: '0' | '1', pageArg?: number, pageSizeArg?: number) => {
-    if (!currentUser?.userId) return
-
-    const pagination = mode === '0' ? activePagination : dischargedPagination
-    const page = pageArg ?? pagination.current
-    const pageSize = pageSizeArg ?? pagination.pageSize
-
+  // Load stats - gọi API tổng hợp mới ở /api/dashboard/stats
+  const loadStats = useCallback(async () => {
+    if (!user?.userId) return
     try {
-      const params = new URLSearchParams({
-        userId: currentUser.userId,
-        mode,
-        page: String(page),
-        pageSize: String(pageSize),
+      const res = await fetch(`/api/dashboard/stats?userId=${encodeURIComponent(user.userId)}`)
+      const result = await res.json()
+
+      if (!result?.success) {
+        console.error("API dashboard stats trả về lỗi:", result?.message)
+        return
+      }
+
+      const { totals, rankStats: apiRanks, unitStats: apiUnits, monthlySeries: apiSeries } = result.data || {}
+
+      setStats({
+        total: Number(totals?.total || 0),
+        active: Number(totals?.active || 0),
+        discharged: Number(totals?.discharged || 0),
+        // Ưu tiên số pending do change-log context trả về (đã có real-time),
+        // fallback sang giá trị từ API nếu context chưa sẵn sàng.
+        pending: pendingCount || Number(totals?.pending || 0),
       })
 
-      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
-      if (selectedUnitId) params.set('unitId', selectedUnitId)
-      if (debouncedUnitPathSearch.trim()) params.set('unitPath', debouncedUnitPathSearch.trim())
+      // Rank distribution - lấy tối đa 4 dòng đầu, gộp phần còn lại thành "Khác"
+      const topRanks = (apiRanks || []).slice(0, 4)
+      const otherRanks = (apiRanks || []).slice(4)
+      const otherRankCount = otherRanks.reduce((sum: number, r: any) => sum + (r.count || 0), 0)
+      const rankItems = topRanks.map((r: any, i: number) => ({ name: r.name, count: r.count, color: RANK_PALETTE[i % RANK_PALETTE.length] }))
+      if (otherRankCount > 0) rankItems.push({ name: "Khác", count: otherRankCount, color: RANK_PALETTE[4] })
+      setRankStats(rankItems)
 
-      const response = await fetch(`/api/soldiers?${params.toString()}`)
-      const result = await response.json()
-      if (result.success) {
-        console.log("DATA SOLDIER:", result.data)
-        const nextPagination = {
-          current: result.page ?? page,
-          pageSize: result.pageSize ?? pageSize,
-          total: result.total ?? result.count ?? 0,
-        }
+      // Unit distribution - tương tự
+      const topUnits = (apiUnits || []).slice(0, 4)
+      const otherUnits = (apiUnits || []).slice(4)
+      const otherUnitCount = otherUnits.reduce((sum: number, u: any) => sum + (u.count || 0), 0)
+      const unitItems = topUnits.map((u: any, i: number) => ({ name: u.name, count: u.count, color: UNIT_PALETTE[i % UNIT_PALETTE.length] }))
+      if (otherUnitCount > 0) unitItems.push({ name: "Khác", count: otherUnitCount, color: UNIT_PALETTE[4] })
+      setUnitStats(unitItems)
 
-        if (mode === '0') {
-          setActiveData(result.data)
-          setActivePagination(nextPagination)
-        } else {
-          setDischargedData(result.data)
-          setDischargedPagination(nextPagination)
-        }
-      } else {
-        message.error(result.message || 'Lỗi khi tải dữ liệu')
-      }
+      setMonthlySeries(apiSeries || [])
     } catch (error) {
-      console.error('Lỗi khi gọi API:', error)
-      message.error('Lỗi kết nối server')
+      console.error("Lỗi khi tải thống kê:", error)
     }
-  }, [
-    currentUser?.userId,
-    activePagination.current,
-    activePagination.pageSize,
-    dischargedPagination.current,
-    dischargedPagination.pageSize,
-    debouncedSearch,
-    selectedUnitId,
-    debouncedUnitPathSearch,
-    message,
-  ])
+  }, [user?.userId, pendingCount])
 
-  // Load cây đơn vị - dùng UnitID làm value/key
-  const loadUnitTree = useCallback(async () => {
-    if (!currentUser?.userId) return
-    try {
-      setUnitTreeLoading(true)
-      const response = await fetch(`/api/units?userId=${currentUser.userId}`)
-      const result = await response.json()
-
-      if (result.success && result.data) {
-        const buildTree = (units: any[]): UnitTreeNode[] => {
-          const unitMap = new Map<string, UnitTreeNode>()
-          const rootNodes: UnitTreeNode[] = []
-
-          // Tạo nodes - dùng UnitID làm key và value
-          units.forEach((unit: any) => {
-            unitMap.set(unit.UnitID, {
-              title: unit.UnitName,
-              value: unit.UnitID,
-              key: unit.UnitID,
-              children: [],
-              unitId: unit.UnitID,
-            })
-          })
-
-          // Xây dựng cây dựa vào ParentUnitID
-          units.forEach((unit: any) => {
-            const currentNode = unitMap.get(unit.UnitID)
-            if (!currentNode) return
-
-            if (unit.ParentUnitID) {
-              const parentNode = unitMap.get(unit.ParentUnitID)
-              if (parentNode) {
-                parentNode.children!.push(currentNode)
-              } else {
-                rootNodes.push(currentNode)
-              }
-            } else {
-              rootNodes.push(currentNode)
-            }
-          })
-
-          return rootNodes
-        }
-
-        setUnitTreeData(buildTree(result.data))
-      }
-    } catch (error) {
-      console.error('Lỗi khi tải cây đơn vị:', error)
-    } finally {
-      setUnitTreeLoading(false)
-    }
-  }, [currentUser?.userId])
-
-  // Redirect nếu chưa đăng nhập
-  useEffect(() => {
-    if (!isLoading && !currentUser) {
-      router.replace("/login")
-    }
-  }, [currentUser, isLoading, router])
-
-  // Reset về trang đầu khi đổi bộ lọc/tìm kiếm
-  useEffect(() => {
-    setActivePagination((prev) => prev.current === 1 ? prev : { ...prev, current: 1 })
-    setDischargedPagination((prev) => prev.current === 1 ? prev : { ...prev, current: 1 })
-  }, [debouncedSearch, selectedUnitId, debouncedUnitPathSearch])
-
-  // Load cây đơn vị một lần sau khi đăng nhập
-  useEffect(() => {
-    if (!isLoading && currentUser) {
-      void loadUnitTree()
-    }
-  }, [currentUser, isLoading, loadUnitTree])
-
-  // Chỉ load tab hiện tại; search/pagination xử lý ở API
-  useEffect(() => {
-    if (!isLoading && currentUser && activeTab !== "changelog") {
-      setLoading(true)
-      const mode = activeTab === "discharged" ? '1' : '0'
-      loadSoldiers(mode).finally(() => setLoading(false))
-    }
-  }, [activeTab, currentUser, isLoading, loadSoldiers])
-
-  // ============================================================
-  // DATA HIỂN THỊ - đã filter/search/pagination ở server
-  // ============================================================
-
-  const currentData = activeTab === "discharged" ? dischargedData : activeData
-  const currentPagination = activeTab === "discharged" ? dischargedPagination : activePagination
-
-  // ============================================================
-  // TREE FILTER - Filter TreeSelect theo tên hiển thị
-  // ============================================================
-
-  const filteredUnitTreeData = useMemo(() => {
-    const searchText = debouncedTreeSearchText.trim()
-    if (!searchText) {
-      return unitTreeData
-    }
-
-    const searchLower = searchText.toLowerCase()
-
-    // Đệ quy filter tree: giữ lại node nếu title match HOẶC có con match
-    const filterTree = (nodes: UnitTreeNode[]): UnitTreeNode[] => {
-      const result: UnitTreeNode[] = []
-      
-      for (const node of nodes) {
-        const titleMatch = node.title.toLowerCase().includes(searchLower)
-        const filteredChildren = node.children ? filterTree(node.children) : []
-        
-        if (titleMatch || filteredChildren.length > 0) {
-          result.push({
-            ...node,
-            children: titleMatch ? (node.children || []) : filteredChildren,
-          })
-        }
-      }
-      
-      return result
-    }
-
-    return filterTree(unitTreeData)
-  }, [unitTreeData, debouncedTreeSearchText])
-
-  // Auto expand khi search trên TreeSelect
-  useEffect(() => {
-    if (!debouncedTreeSearchText.trim()) {
-      setExpandedUnitKeys([])
-      return
-    }
-
-    const collectKeys = (nodes: UnitTreeNode[]): string[] => {
-      const keys: string[] = []
-      const traverse = (list: UnitTreeNode[]) => {
-        for (const node of list) {
-          keys.push(node.key)
-          if (node.children?.length) traverse(node.children)
-        }
-      }
-      traverse(nodes)
-      return keys
-    }
-
-    setExpandedUnitKeys(collectKeys(filteredUnitTreeData))
-  }, [filteredUnitTreeData, debouncedTreeSearchText])
+  useEffect(() => { if (!isLoading && !user) router.replace("/login") }, [user, isLoading, router])
+  useEffect(() => { if (!isLoading && user) loadStats() }, [user, isLoading, loadStats])
 
   // ============================================================
   // GUARD
   // ============================================================
 
-  if (isLoading || !currentUser) {
+  if (isLoading || !user) {
     return (
-      <Layout style={{ minHeight: "100vh", display: "flex", alignItems: "center", justifyContent: "center" }}>
-        <Typography.Text>Đang kiểm tra phiên đăng nhập...</Typography.Text>
-      </Layout>
+      <PageLayout>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 400 }}>
+          <Typography.Text>Đang kiểm tra phiên đăng nhập...</Typography.Text>
+        </div>
+      </PageLayout>
     )
   }
 
   // ============================================================
-  // HELPER FUNCTIONS
+  // COMPUTED
   // ============================================================
 
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return ""
-    try {
-      const date = new Date(dateStr)
-      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
-    } catch {
-      return dateStr
-    }
-  }
+  const activePercent = stats.total > 0 ? ((stats.active / stats.total) * 100).toFixed(1) : "0"
+  const dischargedPercent = stats.total > 0 ? ((stats.discharged / stats.total) * 100).toFixed(1) : "0"
+  const maxUnitCount = Math.max(...unitStats.map(u => u.count), 1)
 
-  const formatGender = (gender: number) => gender === 1 ? "Nam" : "Nữ"
-
-  // Render cột đơn vị với hierarchy - cấp trên nhỏ, hiện tại bình thường
-  const renderUnitHierarchy = (unitFullPath: string, unitName: string) => {
-    if (!unitFullPath) return unitName || ""
-    const parts = unitFullPath.split(',')
-    if (parts.length <= 1) return <Typography.Text>{unitName || unitFullPath}</Typography.Text>
-
-    const currentUnit = parts[parts.length - 1]
-    const parentUnits = parts.slice(0, -1).join(', ')
-
-    return (
-      <div>
-        {parentUnits && (
-          <Typography.Text style={{ fontSize: 11, color: "#8c8c8c", display: 'block', lineHeight: 1.2 }}>
-            {parentUnits}
-          </Typography.Text>
-        )}
-        <Typography.Text style={{ fontWeight: 500, display: 'block', lineHeight: 1.3 }}>
-          {currentUnit}
-        </Typography.Text>
-      </div>
-    )
-  }
-
-  // XOÁ HẲN - Hard delete
-  const handleDelete = (record: SoldierData) => {
-    Modal.confirm({
-      title: "Xác nhận xoá",
-      content: (
-        <div>
-          <p style={{ color: "#ff4d4f", fontWeight: 600 }}>
-            ⚠️ Bạn có chắc chắn muốn XOÁ chiến sĩ này khỏi hệ thống?
-          </p>
-          <div style={{ background: "#fff1f0", padding: 12, borderRadius: 6, marginTop: 8, border: "1px solid #ffccc7" }}>
-            <div><strong>{record.FullName}</strong></div>
-            <div style={{ fontSize: 12, color: "#888" }}>{record.SoldierID} - {record.UnitName}</div>
-          </div>
-          <p style={{ marginTop: 12, color: "#ff4d4f", fontSize: 13 }}>
-            <ExclamationCircleFilled /> Hành động này KHÔNG THỂ HOÀN TÁC!
-          </p>
-        </div>
-      ),
-      okText: "Xoá",
-      okType: "danger",
-      cancelText: "Hủy",
-      onOk: async () => {
-        try {
-          const response = await fetch(
-            `/api/soldiers/${record.SoldierID}?userId=${currentUser.userId}&hard=true`,
-            { method: 'DELETE' }
-          )
-          const result = await response.json()
-          if (result.success) {
-            message.success("Đã xoá chiến sĩ khỏi hệ thống")
-            setLoading(true)
-            const mode = activeTab === "discharged" ? '1' : '0'
-            await loadSoldiers(mode)
-            setLoading(false)
-          } else {
-            message.error(result.message || "Lỗi khi xoá")
-          }
-        } catch {
-          message.error('Lỗi kết nối server')
-        }
-      },
-    })
-  }
-
-  const handleBellClick = () => setActiveTab("changelog")
-
-  // ============================================================
-  // TABLE COLUMNS
-  // Thứ tự: Ảnh, Họ tên, Ngày sinh, Cấp bậc, Chức vụ, Đơn vị, Ngày nhập ngũ, Giới tính, Dân tộc, Tôn giáo, Chuyên môn, Trạng thái, Thao tác
-  // ============================================================
-
-  const columns: ColumnsType<SoldierData> = [
-    {
-      title: "Ảnh",
-      dataIndex: "PhotoPath",
-      key: "PhotoPath",
-      width: 60,
-      align: "center",
-      // render: (photo: string, record) => (
-      //   <Avatar size={36} src={photo} style={{ background: "#4b5320" }}>
-      //     {record.FullName.charAt(0)}
-      //   </Avatar>
-      // ),
-      render: (photo: string, record) => (
-        <Avatar
-          size={40}
-          src={photo || undefined}
-          style={{ 
-            background: "#4b5320",
-            verticalAlign: "middle"
-          }}
-        >
-          {record.FullName?.charAt(0)}
-        </Avatar>
-      ),
-    },
-    {
-      title: "Họ và tên",
-      dataIndex: "FullName",
-      key: "FullName",
-      width: 160,
-      render: (name: string, record) => (
-        <div>
-          <div style={{ fontWeight: 600 }}>{name}</div>
-          <div style={{ fontSize: 11, color: "#8c8c8c" }}>{record.SoldierID}</div>
-        </div>
-      ),
-    },
-    { 
-      title: "Ngày sinh", 
-      dataIndex: "DateOfBirth", 
-      key: "DateOfBirth", 
-      width: 100, 
-      align: "center",
-      render: (date: string) => {
-        if (!date) return "—"
-        try {
-          const d = new Date(date)
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-        } catch {
-          return date
-        }
-      }
-    },
-    { 
-      title: "Cấp bậc", 
-      dataIndex: "RankName", 
-      key: "RankName", 
-      width: 100 
-    },
-    { 
-      title: "Chức vụ", 
-      dataIndex: "Position", 
-      key: "Position", 
-      width: 130 
-    },
-    { 
-      title: "Đơn vị", 
-      key: "Unit", 
-      width: 220, 
-      render: (_, record) => renderUnitHierarchy(record.UnitFullPath, record.UnitName) 
-    },
-    { 
-      title: "Ngày nhập ngũ", 
-      dataIndex: "EnlistmentDate", 
-      key: "EnlistmentDate", 
-      width: 110, 
-      align: "center",
-      render: (date: string) => {
-        if (!date) return "—"
-        try {
-          const d = new Date(date)
-          return `${String(d.getDate()).padStart(2, '0')}/${String(d.getMonth() + 1).padStart(2, '0')}/${d.getFullYear()}`
-        } catch {
-          return date
-        }
-      }
-    },
-    { 
-      title: "Giới tính", 
-      dataIndex: "Gender", 
-      key: "Gender", 
-      width: 70, 
-      align: "center", 
-      render: formatGender 
-    },
-    { 
-      title: "Dân tộc", 
-      dataIndex: "Ethnicity", 
-      key: "Ethnicity", 
-      width: 80 
-    },
-    { 
-      title: "Tôn giáo", 
-      dataIndex: "ReligionName", 
-      key: "ReligionName", 
-      width: 80 
-    },
-    { 
-      title: "Chuyên môn", 
-      dataIndex: "Specialization", 
-      key: "Specialization", 
-      width: 120 
-    },
-    { 
-      title: "Trạng thái", 
-      dataIndex: "StatusName", 
-      key: "StatusName", 
-      width: 100, 
-      align: "center", 
-      render: (status: string) => <StatusTag status={status} /> 
-    },
-    {
-      title: "Thao tác",
-      key: "actions",
-      width: 110,
-      fixed: "right",
-      render: (_, record) => (
-        <Space size="small">
-          <Tooltip title="Xem chi tiết">
-            <Button type="text" size="small" icon={<EyeOutlined />} onClick={() => router.push(`/soldiers/${record.SoldierID}`)} />
-          </Tooltip>
-          {hasPermission("canEdit") && (
-            <Tooltip title="Sửa">
-              <Button type="text" size="small" icon={<EditOutlined />} onClick={() => handleEditSoldier(record)} />
-            </Tooltip>
-          )}
-          {hasPermission("canDelete") && (
-            <Tooltip title="Xoá">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
-            </Tooltip>
-          )}
-        </Space>
-      ),
-    },
-  ]
-
-  // ============================================================
-  // EXCEL HANDLERS
-  // ============================================================
-
-  const handleImportExcel = () => fileInputRef.current?.click()
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const file = e.target.files?.[0]
-    if (!file) return
-    const reader = new FileReader()
-    reader.onload = async (evt) => {
-      try {
-        const XLSX = await import("xlsx")
-        const bstr = evt.target?.result
-        const wb = XLSX.read(bstr, { type: "binary" })
-        const ws = wb.Sheets[wb.SheetNames[0]]
-        const data = XLSX.utils.sheet_to_json(ws)
-        message.success(`Đã import ${data.length} dòng`)
-      } catch (error) {
-        console.error("Lỗi khi đọc Excel:", error)
-        message.error("Lỗi khi đọc file Excel")
-      }
-    }
-    reader.readAsBinaryString(file)
-    e.target.value = ""
-  }
-
-  // const handleExportExcel = async () => {
-  //   try {
-  //     const XLSX = await import("xlsx")
-  //     const exportData = currentData.map((s) => ({
-  //       "Mã QS": s.SoldierID,
-  //       "Họ và tên": s.FullName,
-  //       "Giới tính": formatGender(s.Gender),
-  //       "Ngày sinh": formatDate(s.DateOfBirth),
-  //       "CCCD": s.CitizenID,
-  //       "Đơn vị": s.UnitFullPath || s.UnitName,
-  //       "Chức vụ": s.Position,
-  //       "Cấp bậc": s.RankName,
-  //       "Trạng thái": s.StatusName,
-  //     }))
-  //     const ws = XLSX.utils.json_to_sheet(exportData)
-  //     const wb = XLSX.utils.book_new()
-  //     XLSX.utils.book_append_sheet(wb, ws, "DanhSach")
-  //     XLSX.writeFile(wb, `DanhSachQuanNhan_${activeTab}.xlsx`)
-  //     message.success("Đã xuất file")
-  //   } catch (error) {
-  //     console.error("Lỗi khi xuất Excel:", error)
-  //     message.error("Lỗi khi xuất file Excel")
-  //   }
-  // }
+  // Donut chart calculations
+  const totalRank = rankStats.reduce((sum, r) => sum + r.count, 0) || 1
 
   // ============================================================
   // RENDER
   // ============================================================
 
-    const handleExportExcel = async () => {
-      try {
-
-          const params = new URLSearchParams({
-              userId: currentUser.userId,
-              mode: activeTab === "discharged" ? "1" : "0",
-              export: "true"
-          });
-
-          if (search.trim())
-              params.set("search", search);
-
-          if (selectedUnitId)
-              params.set("unitId", selectedUnitId);
-
-          if (unitPathSearch.trim())
-              params.set("unitPath", unitPathSearch);
-
-          const response = await fetch(`/api/soldiers?${params}`);
-
-          const result = await response.json();
-
-          if (!result.success) {
-              message.error(result.message);
-              return;
-          }
-
-          const XLSX = await import("xlsx");
-
-          const exportData = result.data.map((s: any) => ({
-      "Mã quân nhân": s.SoldierID,
-      "Họ và tên": s.FullName,
-      "Ngày sinh": formatDate(s.DateOfBirth),
-      "Giới tính": formatGender(s.Gender),
-      "CCCD": s.CitizenID,
-
-      "Đơn vị": s.UnitName,
-      "Đường dẫn đơn vị": s.UnitFullPath,
-      "Hierarchy": s.UnitHierarchyPath,
-
-      "Chức vụ": s.Position,
-      "Cấp bậc": s.RankName,
-      "Trạng thái": s.StatusName,
-
-      "Dân tộc": s.Ethnicity,
-      "Tôn giáo": s.ReligionName,
-      "Hôn nhân": s.MaritalStatusName,
-
-      "Trình độ": s.EducationLevel,
-      "Chuyên môn": s.Specialization,
-      "Chính trị": s.PoliticalLevel,
-
-      "Nhóm máu": s.BloodType,
-      "Sức khỏe": s.HealthClassification,
-
-      "Chiều cao": s.Height,
-      "Cân nặng": s.Weight,
-      "Huyết áp": s.BloodPressure,
-
-      "Quê quán": s.Hometown,
-      "Địa chỉ": s.Address,
-      "Phường": s.WardName,
-      "Tỉnh": s.ProvinceName,
-
-      "Ngày nhập ngũ": formatDate(s.EnlistmentDate),
-      "Ngày vào Đảng": formatDate(s.PartyJoinDate),
-      "Ngày vào Đoàn": formatDate(s.YouthUnionJoinDate),
-
-      "Người tạo": s.CreatedBy,
-      "Ngày tạo": formatDate(s.CreatedDate),
-
-      "Người sửa": s.LastModifiedBy,
-      "Ngày sửa": formatDate(s.LastModifiedDate)
-  }));
-
-        const ws = XLSX.utils.json_to_sheet(exportData);
-
-        ws["!cols"] = [
-            { wch: 15 },
-            { wch: 30 },
-            { wch: 15 },
-            { wch: 10 },
-            { wch: 18 },
-            { wch: 40 },
-            { wch: 20 },
-            { wch: 20 },
-            { wch: 15 }
-        ];
-
-        const wb = XLSX.utils.book_new();
-
-        XLSX.utils.book_append_sheet(wb, ws, "Danh sách");
-
-        XLSX.writeFile(wb, "DanhSachQuanNhan.xlsx");
-
-        message.success("Xuất Excel thành công");
-
-    } catch (err) {
-
-        console.error(err);
-
-        message.error("Xuất Excel thất bại");
-
-    }
-};
-
-  const activeCount = activePagination.total
-  const dischargedCount = dischargedPagination.total
-
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <AppHeader onBellClick={handleBellClick} />
+    <PageLayout>
+      {/* Welcome Banner */}
+      <div style={{ marginBottom: 24 }}>
+        <Typography.Title level={3} style={{ margin: 0, color: "#212121" }}>
+          Chào mừng trở lại, {user.fullName} 👋
+        </Typography.Title>
+        <Typography.Text style={{ color: "#757575", fontSize: 14 }}>
+          Quản lý và theo dõi thông tin quân nhân một cách hiệu quả
+        </Typography.Text>
+      </div>
 
-      <Content style={{ padding: "24px 32px", background: "#f3f4ec" }}>
-        {/* Thanh công cụ */}
-        <Card style={{ marginBottom: 16 }}>
-          <Row gutter={[16, 16]} align="middle">
-            {/* Tìm kiếm theo tên, CCCD, mã chiến sĩ */}
-            <Col>
-              <Input
-                placeholder="Tìm theo tên, CCCD, mã chiến sĩ..."
-                prefix={<SearchOutlined />}
-                value={search}
-                onChange={(e) => setSearch(e.target.value)}
-                style={{ width: 240 }}
-                allowClear
-              />
-            </Col>
-            
-            {/* TreeSelect - chọn đơn vị từ cơ cấu (filter theo UnitID) */}
-            <Col>
-              <TreeSelect
-                showSearch
-                allowClear
-                placeholder="Chọn đơn vị..."
-                value={selectedUnitId}
-                onChange={(value) => setSelectedUnitId(value)}
-                treeData={filteredUnitTreeData}
-                searchValue={unitSearchText}
-                onSearch={(value) => setUnitSearchText(value)}
-                treeExpandedKeys={expandedUnitKeys}
-                onTreeExpand={(keys) => setExpandedUnitKeys(keys as string[])}
-                loading={unitTreeLoading}
-                style={{ width: 280 }}
-                treeNodeFilterProp="title"
-                notFoundContent={unitTreeLoading ? "Đang tải..." : "Không có đơn vị"}
-                styles={{ popup: { root: { maxHeight: 400, overflow: 'auto' } } }}
-                listHeight={400}
-              />
-            </Col>
-            
-            {/* Tìm kiếm theo HierarchyPath/FullPathName (filter trực tiếp) */}
-            <Col>
-              <Input
-                placeholder="Mã ĐH: QK7,fBB5,eBB4 hoặc tên: Quân khu 7,Sư đoàn..."
-                prefix={<FolderOutlined style={{ color: "#8c8c8c" }} />}
-                value={unitPathSearch}
-                onChange={(e) => setUnitPathSearch(e.target.value)}
-                style={{ width: 380 }}
-                allowClear
-              />
-            </Col>
-            
-            <Col>
-              {hasPermission("canImport") && (
-                <Button icon={<UploadOutlined />} onClick={handleImportExcel}>Nhập Excel</Button>
-              )}
-            </Col>
-            <Col>
-              {hasPermission("canExport") && (
-                <Button icon={<FileExcelOutlined />} onClick={handleExportExcel}>Xuất Excel</Button>
-              )}
-            </Col>
-            <Col flex="auto" style={{ textAlign: "right" }}>
-              <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleFileChange} />
-              {activeTab === "active" && hasPermission("canCreate") && (
-                <Button type="primary" icon={<PlusOutlined />} onClick={handleAddSoldier}>Thêm chiến sĩ</Button>
-              )}
-            </Col>
-          </Row>
-        </Card>
-
-        {/* Tabs */}
-        <Tabs
-          activeKey={activeTab}
-          onChange={(key) => setActiveTab(key as "active" | "discharged" | "changelog")}
-          style={{ marginBottom: 16 }}
-          items={[
-            {
-              key: "active",
-              label: (
-                <span>
-                  <Avatar size="small" style={{ background: "#4b5320", marginRight: 8 }}><FolderOutlined /></Avatar>
-                  Đang công tác ({activeCount})
-                </span>
-              ),
-            },
-            {
-              key: "discharged",
-              label: (
-                <span>
-                  <Avatar size="small" style={{ background: "#8c8c8c", marginRight: 8 }}><FolderOutlined /></Avatar>
-                  Đã xuất ngũ ({dischargedCount})
-                </span>
-              ),
-            },
-            {
-              key: "changelog",
-              label: (
-                <span>
-                  <Avatar size="small" style={{ background: "#faad14", marginRight: 8 }}><SendOutlined /></Avatar>
-                  Báo cáo thay đổi ({pendingCount})
-                </span>
-              ),
-            },
-          ]}
-        />
-
-        {/* Bảng dữ liệu */}
-        {activeTab !== "changelog" && (
-          <>
-            <div style={{ marginBottom: 12, display: "flex", justifyContent: "space-between" }}>
-              <Typography.Text strong>
-                {activeTab === "active" ? "Danh sách đang công tác" : "Danh sách đã xuất ngũ"}
-              </Typography.Text>
-              <Typography.Text type="secondary">Tổng: {currentPagination.total}</Typography.Text>
+      {/* KPI Cards */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TeamOutlined style={{ fontSize: 22, color: "#2e7d32" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.total}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Tổng quân nhân</div>
+                <div style={{ fontSize: 11, color: "#2e7d32" }}>100% tổng số quân nhân</div>
+              </div>
             </div>
-            <Card styles={{ body: { padding: 0 } }}>
-              <Table<SoldierData>
-                rowKey="SoldierID"
-                columns={columns}
-                dataSource={currentData}
-                loading={loading}
-                scroll={{ x: 2100 }}
-                pagination={{
-                  current: currentPagination.current,
-                  pageSize: currentPagination.pageSize,
-                  total: currentPagination.total,
-                  showSizeChanger: true,
-                  pageSizeOptions: ['10', '20', '50', '100'],
-                  showTotal: (total, range) => `${range[0]}-${range[1]} / ${total}`,
-                }}
-                onChange={(pagination) => {
-                  const next = {
-                    current: pagination.current || 1,
-                    pageSize: pagination.pageSize || currentPagination.pageSize,
-                    total: currentPagination.total,
-                  }
-                  if (activeTab === "discharged") {
-                    setDischargedPagination(next)
-                  } else {
-                    setActivePagination(next)
-                  }
-                }}
-                locale={{ emptyText: "Không có dữ liệu" }}
-              />
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <SafetyCertificateOutlined style={{ fontSize: 22, color: "#1565c0" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.active}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Đang công tác</div>
+                <div style={{ fontSize: 11, color: "#1565c0" }}>{activePercent}% tổng quân nhân</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <UserDeleteOutlined style={{ fontSize: 22, color: "#ef6c00" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.discharged}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Đã xuất ngũ</div>
+                <div style={{ fontSize: 11, color: "#ef6c00" }}>{dischargedPercent}% tổng quân nhân</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#f3e5f5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FileSearchOutlined style={{ fontSize: 22, color: "#7b1fa2" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.pending}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Báo cáo chờ xử lý</div>
+                <div style={{ fontSize: 11, color: "#7b1fa2" }}>Chờ xử lý</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Charts Row */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {/* Donut Chart - Rank Distribution */}
+        <Col xs={24} lg={10}>
+          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo cấp bậc</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
+              {/* CSS Donut */}
+              <div style={{ position: "relative", width: 160, height: 160, flexShrink: 0 }}>
+                <svg viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
+                  {(() => {
+                    let offset = 0
+                    return rankStats.map((rank, i) => {
+                      const pct = (rank.count / totalRank) * 100
+                      const circumference = Math.PI * 2 * 35
+                      const dashLength = (pct / 100) * circumference
+                      const dashOffset = -(offset / 100) * circumference
+                      offset += pct
+                      return (
+                        <circle
+                          key={i}
+                          cx="50" cy="50" r="35"
+                          fill="none"
+                          stroke={rank.color}
+                          strokeWidth="18"
+                          strokeDasharray={`${dashLength} ${circumference - dashLength}`}
+                          strokeDashoffset={dashOffset}
+                        />
+                      )
+                    })
+                  })()}
+                </svg>
+                <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: "#212121" }}>{stats.total}</div>
+                  <div style={{ fontSize: 11, color: "#757575" }}>Tổng số</div>
+                </div>
+              </div>
+              {/* Legend */}
+              <div style={{ flex: 1 }}>
+                {rankStats.map((rank, i) => (
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
+                    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: rank.color }} />
+                      <span style={{ fontSize: 13, color: "#424242" }}>{rank.name}</span>
+                    </div>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>
+                      {rank.count} <span style={{ color: "#757575", fontWeight: 400 }}>({((rank.count / totalRank) * 100).toFixed(1)}%)</span>
+                    </span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </Card>
+        </Col>
+
+        {/* Bar Chart - Unit Distribution */}
+        <Col xs={24} lg={14}>
+          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo đơn vị</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 8 }}>
+              {unitStats.map((unit, i) => (
+                <div key={i}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, color: "#424242" }}>{unit.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{unit.count}</span>
+                  </div>
+                  <div style={{ height: 24, background: "#f0f0f0", borderRadius: 6, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${(unit.count / maxUnitCount) * 100}%`,
+                        background: `linear-gradient(90deg, ${unit.color}, ${unit.color}dd)`,
+                        borderRadius: 6,
+                        transition: "width 0.5s ease",
+                        minWidth: 20,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Line Chart Area + Notifications */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        {/* Monthly Fluctuation - simplified line chart */}
+        <Col xs={24} lg={14}>
+          <Card title={<span style={{ fontWeight: 600 }}>Biến động quân nhân theo tháng</span>} style={{ borderRadius: 10 }} styles={{ body: { padding: "16px 20px" } }}>
+            <div style={{ position: "relative", height: 200, borderLeft: "1px solid #e0e0e0", borderBottom: "1px solid #e0e0e0", marginLeft: 30, marginBottom: 30 }}>
+              {/* Y axis labels */}
+              {[0, 25, 50, 75, 100].map((v, i) => (
+                <div key={i} style={{ position: "absolute", left: -30, bottom: `${v}%`, fontSize: 10, color: "#999", transform: "translateY(50%)" }}>
+                  {v}
+                </div>
+              ))}
+              {/* X axis labels - dùng dữ liệu real từ monthlySeries */}
+              {(monthlySeries.length ? monthlySeries : Array.from({ length: 12 }, (_, i) => ({ month: `2026-${String(i + 1).padStart(2, '0')}` }))).map((row: any, i: number, arr: any[]) => (
+                <div key={i} style={{ position: "absolute", left: `${(i / Math.max(arr.length - 1, 1)) * 100}%`, bottom: -22, fontSize: 10, color: "#999", transform: "translateX(-50%)" }}>
+                  T{Number((row.month || '').slice(5, 7)) || i + 1}
+                </div>
+              ))}
+              {/* Simple SVG line chart */}
+              <svg width="100%" height="100%" viewBox="0 0 1100 200" preserveAspectRatio="none" style={{ overflow: "visible" }}>
+                {/* Grid lines */}
+                {[0, 50, 100, 150, 200].map((y, i) => (
+                  <line key={i} x1="0" y1={y} x2="1100" y2={y} stroke="#f0f0f0" strokeWidth="1" />
+                ))}
+                {(() => {
+                  const series = monthlySeries.length ? monthlySeries : []
+                  if (!series.length) return null
+                  const maxTotal = Math.max(...series.map(s => s.total), 1)
+                  const maxRecruited = Math.max(...series.map(s => s.recruited), 1)
+                  const maxDischarged = Math.max(...series.map(s => s.discharged), 1)
+                  const yScale = 200
+                  const toPoints = (values: number[], max: number) =>
+                    values.map((v, i) => {
+                      const x = (i / Math.max(series.length - 1, 1)) * 1100
+                      const y = yScale - (v / max) * yScale
+                      return `${x},${y.toFixed(1)}`
+                    }).join(' ')
+                  return (
+                    <>
+                      <polyline fill="none" stroke="#1565c0" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.total), maxTotal)} />
+                      <polyline fill="none" stroke="#2e7d32" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.recruited), maxRecruited)} />
+                      <polyline fill="none" stroke="#ef6c00" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.discharged), maxDischarged)} />
+                    </>
+                  )
+                })()}
+              </svg>
+            </div>
+            {/* Legend */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#1565c0", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Tổng quân nhân</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#2e7d32", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Tuyển mới</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#ef6c00", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Xuất ngũ</span>
+              </div>
+            </div>
+          </Card>
+        </Col>
+
+        {/* Notifications & Tasks */}
+        <Col xs={24} lg={10}>
+          <Card title={<span style={{ fontWeight: 600 }}>Thông báo & Công việc</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "12px 16px" } }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Notification 1 */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee", cursor: "pointer" }}
+                onClick={() => router.push("/soldiers")}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <FileSearchOutlined style={{ fontSize: 18, color: "#2e7d32" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Có {stats.pending} báo cáo chờ duyệt</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Báo cáo tháng {new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                <ArrowRightOutlined style={{ color: "#bbb", fontSize: 12 }} />
+              </div>
+
+              {/* Notification 2 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <SyncOutlined style={{ fontSize: 18, color: "#ef6c00" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Cập nhật thông tin quân nhân</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Kiểm tra thông tin mới cập nhật</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleDateString('vi-VN')}</div>
+              </div>
+
+              {/* Notification 3 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <CalendarOutlined style={{ fontSize: 18, color: "#1565c0" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Lịch khám sức khỏe định kỳ</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Sắp diễn ra trong tháng {new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleDateString('vi-VN')}</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+      </Row>
+
+      {/* Quick Action Buttons */}
+      <Row gutter={[12, 12]}>
+        {[
+          { icon: <UserAddOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Thêm quân nhân", sub: "Nhập hồ sơ mới", onClick: () => router.push("/soldiers") },
+          { icon: <UploadOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Nhập Excel", sub: "Import dữ liệu", onClick: () => router.push("/soldiers") },
+          { icon: <BarChartOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Báo cáo", sub: "Xem báo cáo thống kê", onClick: () => {} },
+          { icon: <HistoryOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Lịch sử thay đổi", sub: "Theo dõi thay đổi", onClick: () => {} },
+          { icon: <FolderOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Tài liệu quân lực", sub: "Quản lý tài liệu", onClick: () => {} },
+        ].map((item, i) => (
+          <Col xs={12} sm={8} md={4} lg={4} key={i} flex={i === 4 ? "auto" : undefined}>
+            <Card
+              style={{ borderRadius: 10, cursor: "pointer", border: "1px solid #e8e8e8", height: "100%" }}
+              styles={{ body: { padding: "14px 16px" } }}
+              onClick={item.onClick}
+              hoverable
+            >
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 40, height: 40, borderRadius: 10, background: "#f0f5f0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  {item.icon}
+                </div>
+                <div>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>{item.label}</div>
+                  <div style={{ fontSize: 11, color: "#999" }}>{item.sub}</div>
+                </div>
+              </div>
             </Card>
-          </>
-        )}
-
-        {activeTab === "changelog" && (
-          <ChangeReportTab />
-        )}
-      </Content>
-
-      {/* Form Thêm/Sửa chiến sĩ */}
-      <SoldierForm
-        open={soldierFormOpen}
-        onClose={() => {
-          setSoldierFormOpen(false)
-          setEditingSoldier(null)
-        }}
-        soldier={editingSoldier}
-        onSuccess={handleFormSuccess}
-      />
-    </Layout>
+          </Col>
+        ))}
+      </Row>
+    </PageLayout>
   )
 }

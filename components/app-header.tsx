@@ -77,11 +77,15 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
           display: "flex",
           alignItems: "center",
           justifyContent: "space-between",
-          padding: "0 16px",
-          position: "sticky",
+          padding: "0 20px",
+          position: "fixed",
           top: 0,
+          left: 0,
+          right: 0,
           zIndex: 100,
           boxShadow: "0 2px 8px rgba(0,0,0,0.15)",
+          background: "#0f2918",
+          height: 64,
         }}
       >
         <Link href="/" style={{ display: "flex", alignItems: "center", gap: 12, minWidth: 0, textDecoration: "none" }}>
@@ -102,13 +106,13 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
           {/* Nút Cơ cấu đơn vị */}
-          {/* <Button
+          <Button
             type="primary"
             icon={<ApartmentOutlined />}
             onClick={() => setUnitTreeVisible(true)}
             style={{ 
-              background: "#4b5320",
-              borderColor: "#4b5320",
+              background: "rgba(255,255,255,0.12)",
+              borderColor: "rgba(255,255,255,0.2)",
               display: "flex",
               alignItems: "center",
               gap: 8,
@@ -119,7 +123,7 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
             <span className="hidden sm:inline">
               Cơ cấu đơn vị
             </span>
-          </Button> */}
+          </Button>
 
           {/* Nút Tài liệu quân lực */}
           <Button
@@ -127,8 +131,8 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
             icon={<FileTextOutlined />}
             onClick={() => setDocumentPageVisible(true)}
             style={{ 
-              background: "#4b5320",
-              borderColor: "#4b5320",
+              background: "rgba(255,255,255,0.12)",
+              borderColor: "rgba(255,255,255,0.2)",
               display: "flex",
               alignItems: "center",
               gap: 8,
