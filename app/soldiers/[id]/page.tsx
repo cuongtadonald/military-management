@@ -7,12 +7,12 @@
 
 import { useEffect, useState } from "react"
 import { useRouter, useParams } from "next/navigation"
-import { App, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Layout, Modal, Row, Space, Spin, Table, Tabs, Tag, Tooltip, Typography } from "antd"
+import { App, Avatar, Button, Card, Col, Descriptions, Divider, Empty, Layout, Modal, Row, Space, Spin, Table, Tabs, Tag, Tooltip, Typography, Upload } from "antd"
 import type { ColumnsType } from "antd/es/table"
 import {
   ArrowLeftOutlined, UserOutlined, HistoryOutlined, TeamOutlined, EditOutlined, DeleteOutlined,
   ExclamationCircleFilled, TrophyOutlined, SafetyCertificateOutlined, ReadOutlined,
-  FileTextOutlined, PaperClipOutlined, ManOutlined,
+  FileTextOutlined, PaperClipOutlined, ManOutlined, UploadOutlined,
 } from "@ant-design/icons"
 
 import { PageLayout } from "@/components/page-layout"
@@ -133,6 +133,11 @@ export default function SoldierDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [soldierFormOpen, setSoldierFormOpen] = useState(false)
+  
+  // Photo management
+  const [photoModalVisible, setPhotoModalVisible] = useState(false)
+  const [photoPreview, setPhotoPreview] = useState<string | null>(null)
+  const [photoUploading, setPhotoUploading] = useState(false)
 
   const soldierId = params.id as string
 
@@ -151,6 +156,73 @@ export default function SoldierDetailPage() {
           if (result.success) { message.success("Đã xoá chiến sĩ"); router.push("/soldiers") }
           else message.error(result.message || "Lỗi khi xoá")
         } catch { message.error("Lỗi kết nối server") }
+      },
+    })
+  }
+
+  // Photo management handlers
+  const handleViewPhoto = () => {
+    if (soldier.PhotoPath) {
+      setPhotoPreview(soldier.PhotoPath)
+      setPhotoModalVisible(true)
+    }
+  }
+
+  const handleUploadPhoto = async (file: File) => {
+    if (file.size > 5 * 1024 * 1024) {
+      message.error("Kích thước ảnh không được vượt quá 5MB")
+      return false
+    }
+
+    try {
+      setPhotoUploading(true)
+      const formData = new FormData()
+      formData.append('photo', file)
+      formData.append('userId', user?.userId || '')
+
+      const response = await fetch(`/api/soldiers/${soldierId}/photo`, {
+        method: 'POST',
+        body: formData,
+      })
+
+      const result = await response.json()
+      if (result.success) {
+        message.success("Đã cập nhật ảnh")
+        loadSoldier()
+      } else {
+        message.error(result.message || "Lỗi khi tải ảnh lên")
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải ảnh:", error)
+      message.error("Lỗi kết nối server")
+    } finally {
+      setPhotoUploading(false)
+    }
+    return false
+  }
+
+  const handleDeletePhoto = () => {
+    Modal.confirm({
+      title: "Xác nhận xóa ảnh",
+      content: "Bạn có chắc chắn muốn xóa ảnh của quân nhân này?",
+      okText: "Xóa",
+      okType: "danger",
+      cancelText: "Hủy",
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/soldiers/${soldierId}/photo?userId=${user?.userId}`, {
+            method: 'DELETE',
+          })
+          const result = await response.json()
+          if (result.success) {
+            message.success("Đã xóa ảnh")
+            loadSoldier()
+          } else {
+            message.error(result.message || "Lỗi khi xóa ảnh")
+          }
+        } catch {
+          message.error("Lỗi kết nối server")
+        }
       },
     })
   }
@@ -228,7 +300,58 @@ export default function SoldierDetailPage() {
         {/* Left: Photo + Basic Info */}
         <Col xs={24} lg={16}>
           <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
-            <Avatar size={100} src={soldier.PhotoPath} icon={<UserOutlined />} style={{ background: "#4b5320", flexShrink: 0 }} />
+            <div style={{ position: "relative", flexShrink: 0 }}>
+              <Avatar 
+                size={100} 
+                src={soldier.PhotoPath} 
+                icon={<UserOutlined />} 
+                style={{ background: "#4b5320", cursor: soldier.PhotoPath ? "pointer" : "default" }}
+                onClick={handleViewPhoto}
+              />
+              {soldier.PhotoPath && (
+                <div style={{ position: "absolute", bottom: -8, left: "50%", transform: "translateX(-50%)", display: "flex", gap: 4 }}>
+                  <Tooltip title="Đổi ảnh">
+                    <Upload
+                      accept="image/jpeg,image/jpg,image/png"
+                      beforeUpload={handleUploadPhoto}
+                      showUploadList={false}
+                    >
+                      <Button 
+                        size="small" 
+                        icon={<EditOutlined />}
+                        loading={photoUploading}
+                        style={{ width: 28, height: 28, padding: 0 }}
+                      />
+                    </Upload>
+                  </Tooltip>
+                  <Tooltip title="Xóa ảnh">
+                    <Button 
+                      size="small" 
+                      icon={<DeleteOutlined />}
+                      danger
+                      onClick={handleDeletePhoto}
+                      style={{ width: 28, height: 28, padding: 0 }}
+                    />
+                  </Tooltip>
+                </div>
+              )}
+              {!soldier.PhotoPath && (
+                <Upload
+                  accept="image/jpeg,image/jpg,image/png"
+                  beforeUpload={handleUploadPhoto}
+                  showUploadList={false}
+                >
+                  <Button 
+                    size="small" 
+                    icon={<UploadOutlined />}
+                    loading={photoUploading}
+                    style={{ position: "absolute", bottom: -8, left: "50%", transform: "translateX(-50%)", fontSize: 11 }}
+                  >
+                    Tải ảnh
+                  </Button>
+                </Upload>
+              )}
+            </div>
             <div style={{ flex: 1 }}>
               <Descriptions column={1} size="small" labelStyle={{ width: 110, fontWeight: 500, color: "#666" }} contentStyle={{ fontSize: 14 }}>
                 <Descriptions.Item label="Họ và tên"><Typography.Text strong style={{ fontSize: 15 }}>{soldier.FullName}</Typography.Text></Descriptions.Item>
@@ -535,6 +658,19 @@ export default function SoldierDetailPage() {
           <Tabs items={tabItems} defaultActiveKey="personal" />
         </Card>
       </div>
+
+      {/* Photo View Modal */}
+      <Modal
+        open={photoModalVisible}
+        onCancel={() => setPhotoModalVisible(false)}
+        footer={null}
+        width={800}
+        centered
+      >
+        {photoPreview && (
+          <img src={photoPreview} alt="Photo" style={{ width: "100%", borderRadius: 8 }} />
+        )}
+      </Modal>
     </PageLayout>
   )
 }

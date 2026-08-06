@@ -1,28 +1,28 @@
 /**
  * File: app/permissions/page.tsx
- * Mô tả: Trang quản lý quyền - bật/tắt quyền theo PermissionLevel
- * Cập nhật: 2026-07-21
- * 
- * Logic phân quyền:
- *   - PermissionLevel = 2 → có quyền (Thêm, Sửa, Xóa, Nhập/Xuất Excel)
- *   - PermissionLevel = 3 → bị giới hạn quyền (ẩn toàn bộ chức năng)
- * 
- * Thay đổi:
- *   - Không còn toggle từng feature riêng lẻ
- *   - Chỉ 1 Toggle duy nhất: ON = PermissionLevel 2, OFF = PermissionLevel 3
- *   - Cập nhật trực tiếp cột PermissionLevel trên bảng User
- *   - Optimistic update, rollback nếu API lỗi
+ * Mô tả: Trang quản lý quyền truy cập - theo design mới
+ * Chỉ giữ tab "Quản lý người dùng", bỏ nút Thêm người dùng, bỏ cột Thao tác
  */
 
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { App, Button, Card, Col, Layout, Row, Spin, Switch, Table, Tag, Typography } from "antd"
-import { ArrowLeftOutlined, SettingOutlined, UserOutlined, TeamOutlined } from "@ant-design/icons"
+import { App, Avatar, Button, Card, Input, Layout, Modal, Spin, Switch, Table, Tabs, Tag, Typography } from "antd"
+import {
+  SearchOutlined,
+  FilterOutlined,
+  SettingOutlined,
+  UserOutlined,
+  TeamOutlined,
+  SafetyCertificateOutlined,
+  HistoryOutlined,
+  EditOutlined,
+  MoreOutlined,
+} from "@ant-design/icons"
 import type { ColumnsType } from "antd/es/table"
 
-import { AppHeader } from "@/components/app-header"
+import { PageLayout } from "@/components/page-layout"
 import { useAuth } from "@/components/auth-provider"
 
 const { Content } = Layout
@@ -42,6 +42,7 @@ interface UserPermission {
   UnitName?: string
   UnitLevel?: number
   UnitFullPath?: string
+  PhotoPath?: string
 }
 
 interface CurrentUser {
@@ -60,7 +61,6 @@ interface CurrentUser {
 // CONSTANTS
 // ============================================================
 
-// PermissionLevel = 2 → có quyền, PermissionLevel = 3 → không quyền
 const PERMISSION_LEVEL_GRANTED = 2
 const PERMISSION_LEVEL_RESTRICTED = 3
 
@@ -76,6 +76,7 @@ export default function PermissionsPage() {
   const [currentUser, setCurrentUser] = useState<CurrentUser | null>(null)
   const [subordinateUsers, setSubordinateUsers] = useState<UserPermission[]>([])
   const [loadingSwitches, setLoadingSwitches] = useState<Set<string>>(new Set())
+  const [searchText, setSearchText] = useState("")
 
   // Load danh sách user cấp dưới
   useEffect(() => {
@@ -104,9 +105,7 @@ export default function PermissionsPage() {
     }
   }
 
-  // Bật/tắt quyền - cập nhật PermissionLevel trực tiếp
-  // Toggle ON → PermissionLevel = 2 (có quyền)
-  // Toggle OFF → PermissionLevel = 3 (bị giới hạn)
+  // Bật/tắt quyền
   const handleTogglePermission = useCallback(async (
     targetUserId: string,
     enablePermission: boolean
@@ -129,7 +128,6 @@ export default function PermissionsPage() {
     targetUserId: string,
     enablePermission: boolean
   ) => {
-    // Lấy user đăng nhập từ localStorage
     const loggedInUser = JSON.parse(localStorage.getItem("user") || "{}")
 
     if (!loggedInUser.userId) {
@@ -142,14 +140,11 @@ export default function PermissionsPage() {
     const oldUsers = [...subordinateUsers]
     const newPermissionLevel = enablePermission ? PERMISSION_LEVEL_GRANTED : PERMISSION_LEVEL_RESTRICTED
 
-    // Optimistic update - cập nhật PermissionLevel ngay lập tức
+    // Optimistic update
     setSubordinateUsers(prev =>
       prev.map(item => {
         if (item.UserID === targetUserId) {
-          return {
-            ...item,
-            PermissionLevel: newPermissionLevel,
-          }
+          return { ...item, PermissionLevel: newPermissionLevel }
         }
         return item
       })
@@ -158,9 +153,7 @@ export default function PermissionsPage() {
     try {
       const response = await fetch("/api/permissions", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           grantedByUserId: loggedInUser.userId,
           grantedToUserId: targetUserId,
@@ -176,29 +169,22 @@ export default function PermissionsPage() {
       }
 
       message.success(
-        enablePermission
-          ? "Đã cấp quyền cho user."
-          : "Đã tắt quyền của user."
+        enablePermission ? "Đã cấp quyền cho user." : "Đã tắt quyền của user."
       )
 
-      // Broadcast cập nhật để các tab khác biết permission đã thay đổi
+      // Broadcast cập nhật
       if ("BroadcastChannel" in window) {
         const channel = new BroadcastChannel("permission-updates")
-
         channel.postMessage({
           type: "permission_update",
           userId: targetUserId,
           permissionLevel: newPermissionLevel,
         })
-
         channel.close()
       }
     } catch (error: any) {
       console.error(error)
-
-      // Rollback về trạng thái cũ
       setSubordinateUsers(oldUsers)
-
       message.error(error.message || "Lỗi kết nối server")
     } finally {
       setLoadingSwitches(prev => {
@@ -209,10 +195,16 @@ export default function PermissionsPage() {
     }
   }
 
-  // Kiểm tra xem user hiện tại có quyền quản lý không
-  // Logic: Chỉ user có PermissionLevel < 3 mới có quyền quản lý
-  // PermissionLevel: 1=Sư đoàn, 2=Trung đoàn, 3+=Tiểu đoàn trở xuống
   const canManage = user && user.permissionLevel < 3
+
+  // Filter data theo search
+  const filteredUsers = searchText.trim()
+    ? subordinateUsers.filter(u =>
+        u.FullName.toLowerCase().includes(searchText.toLowerCase()) ||
+        u.Username.toLowerCase().includes(searchText.toLowerCase()) ||
+        u.UnitName?.toLowerCase().includes(searchText.toLowerCase())
+      )
+    : subordinateUsers
 
   // ============================================================
   // RENDER
@@ -220,202 +212,260 @@ export default function PermissionsPage() {
 
   if (authLoading || !user) {
     return (
-      <Layout style={{ minHeight: "100vh" }}>
-        <AppHeader />
-        <Content style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <PageLayout>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 400 }}>
           <Spin size="large" />
-        </Content>
-      </Layout>
+        </div>
+      </PageLayout>
     )
   }
 
   if (loading) {
     return (
-      <Layout style={{ minHeight: "100vh" }}>
-        <AppHeader />
-        <Content style={{ display: "flex", alignItems: "center", justifyContent: "center" }}>
+      <PageLayout>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "center", height: 400 }}>
           <Spin size="large" />
           <Typography.Text style={{ marginLeft: 12 }}>Đang tải dữ liệu...</Typography.Text>
-        </Content>
-      </Layout>
+        </div>
+      </PageLayout>
     )
   }
 
-  // Nếu user không có quyền quản lý
   if (!canManage) {
     return (
-      <Layout style={{ minHeight: "100vh" }}>
-        <AppHeader />
-        <Content style={{ padding: "24px 32px", background: "#f3f4ec" }}>
-          <Card>
-            <div style={{ textAlign: "center", padding: 40 }}>
-              <SettingOutlined style={{ fontSize: 48, color: "#8c8c8c", marginBottom: 16 }} />
-              <Typography.Title level={4}>Bạn không có quyền truy cập</Typography.Title>
-              <Typography.Text type="secondary">
-                Chỉ tài khoản có PermissionLevel nhỏ hơn 3 mới có thể quản lý quyền
-              </Typography.Text>
-              <div style={{ marginTop: 24 }}>
-                <Button type="primary" onClick={() => router.push("/")}>
-                  Quay về trang chủ
-                </Button>
-              </div>
+      <PageLayout>
+        <Card>
+          <div style={{ textAlign: "center", padding: 40 }}>
+            <SafetyCertificateOutlined style={{ fontSize: 48, color: "#8c8c8c", marginBottom: 16 }} />
+            <Typography.Title level={4}>Bạn không có quyền truy cập</Typography.Title>
+            <Typography.Text type="secondary">
+              Chỉ tài khoản có PermissionLevel nhỏ hơn 3 mới có thể quản lý quyền
+            </Typography.Text>
+            <div style={{ marginTop: 24 }}>
+              <Button type="primary" onClick={() => router.push("/")}>
+                Quay về trang chủ
+              </Button>
             </div>
-          </Card>
-        </Content>
-      </Layout>
+          </div>
+        </Card>
+      </PageLayout>
     )
   }
 
   // Columns cho bảng
   const columns: ColumnsType<UserPermission> = [
     {
-      title: "Thông tin user",
+      title: "Thông tin người dùng",
       key: "userInfo",
-      width: 250,
+      width: 280,
       render: (_, record) => (
-        <div>
-          <Typography.Text strong>{record.FullName}</Typography.Text>
-          <br />
-          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
-            {record.Username}
-          </Typography.Text>
-          <div style={{ marginTop: 4 }}>
-            <Tag color="blue">{record.RoleName}</Tag>
-            <Tag>{record.UnitName}</Tag>
+        <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+          <Avatar
+            size={40}
+            src={record.PhotoPath || undefined}
+            style={{ background: "#4b5320", flexShrink: 0 }}
+          >
+            {record.FullName?.charAt(0)}
+          </Avatar>
+          <div>
+            <Typography.Text strong style={{ display: "block", fontSize: 13 }}>
+              {record.FullName}
+            </Typography.Text>
+            <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+              {record.Username}
+            </Typography.Text>
+            <div style={{ marginTop: 4 }}>
+              <Tag color="blue" style={{ fontSize: 11 }}>{record.RoleName}</Tag>
+              <Tag style={{ fontSize: 11 }}>{record.UnitName}</Tag>
+            </div>
           </div>
         </div>
       ),
     },
     {
+      title: "Đơn vị quản lý",
+      key: "unit",
+      width: 200,
+      render: (_, record) => (
+        <Typography.Text style={{ fontSize: 13 }}>
+          {record.UnitName || "—"}
+        </Typography.Text>
+      ),
+    },
+    {
+      title: "Vai trò",
+      key: "role",
+      width: 180,
+      render: (_, record) => (
+        <Tag color="blue" style={{ fontSize: 12 }}>
+          {record.RoleName || "—"}
+        </Tag>
+      ),
+    },
+    {
       title: "Trạng thái quyền",
       key: "permissionStatus",
-      width: 150,
-      align: "center" as const,
-      render: (_: any, record: UserPermission) => {
+      width: 140,
+      align: "center",
+      render: (_, record) => {
         const hasPermission = record.PermissionLevel === PERMISSION_LEVEL_GRANTED
         return (
-          <Tag color={hasPermission ? "green" : "red"}>
-            {hasPermission ? "Có quyền" : "Bị giới hạn"}
+          <Tag color={hasPermission ? "success" : "error"} style={{ fontSize: 12 }}>
+            {hasPermission ? "Có quyền" : "Đã giới hạn"}
           </Tag>
         )
       },
     },
     {
-      title: (
-        <div style={{ textAlign: "center", fontWeight: 600 }}>
-          Cấp quyền
-        </div>
-      ),
+      title: "Cấp quyền",
       key: "toggle",
-      width: 120,
-      align: "center" as const,
-      render: (_: any, record: UserPermission) => {
-        // User có quyền khi PermissionLevel = 2
+      width: 160,
+      align: "center",
+      render: (_, record) => {
         const hasPermission = record.PermissionLevel === PERMISSION_LEVEL_GRANTED
         const isLoading = loadingSwitches.has(record.UserID)
-        
+
         return (
-          <Switch
-            checked={hasPermission}
-            loading={isLoading}
-            onChange={(checked) => handleTogglePermission(record.UserID, checked)}
-            checkedChildren="Bật"
-            unCheckedChildren="Tắt"
-          />
+          <div style={{ display: "flex", alignItems: "center", gap: 8, justifyContent: "center" }}>
+            <Typography.Text style={{ fontSize: 12, color: "#666" }}>
+              {hasPermission ? "Đọc / Ghi" : "Chỉ đọc"}
+            </Typography.Text>
+            <Switch
+              checked={hasPermission}
+              loading={isLoading}
+              onChange={(checked) => handleTogglePermission(record.UserID, checked)}
+              size="small"
+            />
+          </div>
         )
       },
     },
   ]
 
   return (
-    <Layout style={{ minHeight: "100vh" }}>
-      <AppHeader />
-
-      <Content style={{ padding: "24px 32px", background: "#f3f4ec" }}>
-        {/* Header */}
-        <Card style={{ marginBottom: 16 }}>
-          <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-            <Button
-              icon={<ArrowLeftOutlined />}
-              onClick={() => router.push("/")}
-            >
-              Quay lại
-            </Button>
-            <div>
-              <Typography.Title level={4} style={{ margin: 0 }}>
-                <SettingOutlined style={{ marginRight: 8 }} />
-                Quản lý quyền truy cập
-              </Typography.Title>
-              <Typography.Text type="secondary">
-                Bật/tắt quyền cho các tài khoản cấp dưới (PermissionLevel 2/3)
-              </Typography.Text>
-            </div>
+    <PageLayout>
+      {/* Header */}
+      <div style={{ marginBottom: 20 }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 12, marginBottom: 8 }}>
+          <SafetyCertificateOutlined style={{ fontSize: 24, color: "#3a4d2e" }} />
+          <div>
+            <Typography.Title level={3} style={{ margin: 0, color: "#212121" }}>
+              Quản lý quyền truy cập
+            </Typography.Title>
+            <Typography.Text type="secondary" style={{ fontSize: 13 }}>
+              Quản lý tài khoản, phân quyền truy cập và bảo mật hệ thống
+            </Typography.Text>
           </div>
-        </Card>
+        </div>
+      </div>
 
-        {/* Thông tin user hiện tại */}
-        <Card size="small" style={{ marginBottom: 16, background: "#f6ffed", borderColor: "#b7eb8f" }}>
-          <Row gutter={16}>
-            <Col>
-              <Typography.Text strong>Tài khoản của bạn:</Typography.Text>
-            </Col>
-            <Col>
-              <Tag color="blue" icon={<UserOutlined />}>{currentUser?.FullName}</Tag>
-            </Col>
-            <Col>
-              <Tag>{currentUser?.RoleName}</Tag>
-            </Col>
-            <Col>
-              <Tag color="green">{currentUser?.UnitName}</Tag>
-            </Col>
-            <Col>
-              <Typography.Text type="secondary">
-                (Level {currentUser?.UnitLevel} - Có thể quản lý Level {(currentUser?.UnitLevel ?? 0) + 1})
-              </Typography.Text>
-            </Col>
-          </Row>
-        </Card>
-
-        {/* Bảng danh sách user */}
-        <Card
-          title={
-            <span>
-              <TeamOutlined style={{ marginRight: 8 }} />
-              Danh sách tài khoản cấp dưới ({subordinateUsers.length})
-            </span>
-          }
-        >
-          {subordinateUsers.length === 0 ? (
-            <div style={{ textAlign: "center", padding: 40, color: "#8c8c8c" }}>
-              <TeamOutlined style={{ fontSize: 40, marginBottom: 12 }} />
-              <div>Không có tài khoản cấp dưới để quản lý</div>
-            </div>
-          ) : (
-            <Table
-              rowKey="UserID"
-              columns={columns}
-              dataSource={subordinateUsers}
-              pagination={{ pageSize: 10, showSizeChanger: true }}
-              scroll={{ x: 1200 }}
-              size="small"
-            />
-          )}
-        </Card>
-
-        {/* Hướng dẫn */}
-        <Card size="small" style={{ marginTop: 16, background: "#e6f7ff", borderColor: "#91d5ff" }}>
-          <Typography.Text strong style={{ color: "#0050b3" }}>
-            Hướng dẫn:
+      {/* User context banner */}
+      <Card
+        size="small"
+        style={{
+          marginBottom: 16,
+          background: "#f6ffed",
+          borderColor: "#b7eb8f",
+          borderRadius: 8,
+        }}
+      >
+        <div style={{ display: "flex", alignItems: "center", gap: 12, flexWrap: "wrap" }}>
+          <Typography.Text strong>Tài khoản của bạn:</Typography.Text>
+          <Tag color="green" icon={<UserOutlined />}>
+            {currentUser?.FullName}
+          </Tag>
+          <Tag>{currentUser?.RoleName}</Tag>
+          <Tag color="blue">{currentUser?.UnitName}</Tag>
+          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+            (Level {currentUser?.UnitLevel} – Có thể quản lý Level {(currentUser?.UnitLevel ?? 0) + 1})
           </Typography.Text>
-          <ul style={{ marginTop: 8, marginBottom: 0, paddingLeft: 20 }}>
-            <li><strong>Bật</strong> công tắc (PermissionLevel = 2): User được quyền Thêm, Sửa, Xóa, Nhập Excel, Xuất Excel</li>
-            <li><strong>Tắt</strong> công tắc (PermissionLevel = 3): User bị ẩn toàn bộ các chức năng trên</li>
-            <li>Quyền được áp dụng <strong>ngay lập tức</strong> sau khi thay đổi (không cần reload)</li>
-            <li>Chỉ tài khoản có PermissionLevel nhỏ hơn 3 mới có thể quản lý quyền</li>
-            <li>Hệ thống tự động lọc và chỉ hiển thị các tài khoản cấp dưới trực tiếp dựa theo UnitID</li>
-          </ul>
-        </Card>
-      </Content>
-    </Layout>
+        </div>
+      </Card>
+
+      {/* Tabs */}
+      <Tabs
+        defaultActiveKey="users"
+        style={{ marginBottom: 16 }}
+        items={[
+          {
+            key: "users",
+            label: (
+              <span>
+                <TeamOutlined /> Quản lý người dùng
+              </span>
+            ),
+          },
+          {
+            key: "roles",
+            label: (
+              <span>
+                <SafetyCertificateOutlined /> Quản lý vai trò
+              </span>
+            ),
+            disabled: true,
+          },
+          {
+            key: "matrix",
+            label: (
+              <span>
+                <SettingOutlined /> Ma trận quyền
+              </span>
+            ),
+            disabled: true,
+          },
+          {
+            key: "log",
+            label: (
+              <span>
+                <HistoryOutlined /> Nhật ký hoạt động
+              </span>
+            ),
+            disabled: true,
+          },
+        ]}
+      />
+
+      {/* Search & Filter */}
+      <Card style={{ marginBottom: 16, borderRadius: 8 }} styles={{ body: { padding: "14px 16px" } }}>
+        <div style={{ display: "flex", justifyContent: "flex-end", gap: 12 }}>
+          <Input
+            placeholder="Tìm kiếm người dùng..."
+            prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+            value={searchText}
+            onChange={(e) => setSearchText(e.target.value)}
+            style={{ width: 280, borderRadius: 8 }}
+            allowClear
+          />
+          <Button icon={<FilterOutlined />}>Bộ lọc</Button>
+        </div>
+      </Card>
+
+      {/* Table */}
+      <Card
+        title={
+          <span>
+            <TeamOutlined style={{ marginRight: 8 }} />
+            Danh sách tài khoản cấp dưới ({filteredUsers.length})
+          </span>
+        }
+        style={{ borderRadius: 8 }}
+      >
+        {filteredUsers.length === 0 ? (
+          <div style={{ textAlign: "center", padding: 40, color: "#8c8c8c" }}>
+            <TeamOutlined style={{ fontSize: 40, marginBottom: 12 }} />
+            <div>Không có tài khoản cấp dưới để quản lý</div>
+          </div>
+        ) : (
+          <Table
+            rowKey="UserID"
+            columns={columns}
+            dataSource={filteredUsers}
+            pagination={{ pageSize: 10, showSizeChanger: true }}
+            scroll={{ x: 1000 }}
+            size="middle"
+          />
+        )}
+      </Card>
+    </PageLayout>
   )
 }

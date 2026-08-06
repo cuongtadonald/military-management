@@ -40,4 +40,21 @@ export async function getPool() {
   return pool;
 }
 
+export async function executeQuery(
+  query: string,
+  params?: Record<string, any>
+) {
+  const pool = await getPool();
+  const request = pool.request();
+
+  if (params) {
+    for (const [key, value] of Object.entries(params)) {
+      request.input(key, value);
+    }
+  }
+
+  const result = await request.query(query);
+  return result.recordset;
+}
+
 export default sql;

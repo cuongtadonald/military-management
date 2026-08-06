@@ -13,12 +13,9 @@
 
 import { useState } from "react"
 import Link from "next/link"
-import { Avatar, Badge, Button, Dropdown, Layout, MenuProps, Typography } from "antd"
+import { Avatar, Badge, Dropdown, Layout, MenuProps, Typography } from "antd"
 import { 
-  BellOutlined, 
   UserOutlined, 
-  ApartmentOutlined,
-  FileTextOutlined,
   HomeOutlined,
   SettingOutlined,
   LogoutOutlined 
@@ -26,8 +23,7 @@ import {
 import { useRouter } from "next/navigation"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
-import UnitTree from "@/components/UnitTree"
-import { DocumentListPage } from "@/components/document-list-page"
+import NotificationBell from "@/components/notification-bell"
 
 const { Header } = Layout
 
@@ -39,8 +35,6 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
   const router = useRouter()
   const { user, logout, canManagePermissions } = useAuth()
   const { pendingCount } = useChangeLog()
-  const [unitTreeVisible, setUnitTreeVisible] = useState(false)
-  const [documentPageVisible, setDocumentPageVisible] = useState(false)
 
   const hasNotification = pendingCount > 0
 
@@ -105,84 +99,8 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
         </Link>
 
         <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-          {/* Nút Cơ cấu đơn vị */}
-          <Button
-            type="primary"
-            icon={<ApartmentOutlined />}
-            onClick={() => setUnitTreeVisible(true)}
-            style={{ 
-              background: "rgba(255,255,255,0.12)",
-              borderColor: "rgba(255,255,255,0.2)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 500,
-            }}
-            title="Cơ cấu tổ chức đơn vị"
-          >
-            <span className="hidden sm:inline">
-              Cơ cấu đơn vị
-            </span>
-          </Button>
-
-          {/* Nút Tài liệu quân lực */}
-          <Button
-            type="primary"
-            icon={<FileTextOutlined />}
-            onClick={() => setDocumentPageVisible(true)}
-            style={{ 
-              background: "rgba(255,255,255,0.12)",
-              borderColor: "rgba(255,255,255,0.2)",
-              display: "flex",
-              alignItems: "center",
-              gap: 8,
-              fontWeight: 500,
-            }}
-            title="Tài liệu quân lực"
-          >
-            <span className="hidden sm:inline">
-              Tài liệu quân lực
-            </span>
-          </Button>
-
-          {/* Nút chuông thông báo */}
-          {hasNotification && (
-            <div
-              onClick={onBellClick}
-              style={{
-                position: "relative",
-                cursor: onBellClick ? "pointer" : "default",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-              }}
-              title={hasNotification ? `${pendingCount} đề xuất chờ phê duyệt` : "Không có thông báo mới"}
-            >
-              {hasNotification && (
-                <span
-                  style={{
-                    position: "absolute",
-                    width: 40,
-                    height: 40,
-                    borderRadius: "50%",
-                    backgroundColor: "rgba(250, 140, 22, 0.3)",
-                    animation: "bellPulse 1.5s ease-in-out infinite",
-                  }}
-                />
-              )}
-              <Badge count={pendingCount} size="small" offset={[-2, 2]}>
-                <BellOutlined
-                  style={{
-                    fontSize: 22,
-                    color: hasNotification ? "#faad14" : "#fff",
-                    animation: hasNotification ? "bellShake 1s ease-in-out infinite" : "none",
-                    position: "relative",
-                    zIndex: 1,
-                  }}
-                />
-              </Badge>
-            </div>
-          )}
+          {/* Nút chuông thông báo - Component mới */}
+          <NotificationBell />
 
           {/* Thông tin user với dropdown */}
           <Dropdown menu={{ items: menuItems }} trigger={['click']} placement="bottomRight">
@@ -216,21 +134,6 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
           }
         `}</style>
       </Header>
-
-      {/* Modal cây đơn vị */}
-      {user?.userId && (
-        <UnitTree
-          userId={user.userId}
-          visible={unitTreeVisible}
-          onClose={() => setUnitTreeVisible(false)}
-        />
-      )}
-
-      {/* Modal danh sách tài liệu quân lực */}
-      <DocumentListPage
-        open={documentPageVisible}
-        onClose={() => setDocumentPageVisible(false)}
-      />
     </>
   )
 }

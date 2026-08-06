@@ -1,12 +1,6 @@
 /**
  * File: app/login/page.tsx
- * Mô tả: Trang đăng nhập - thiết kế mới (hero trái + card đăng nhập phải)
- * Cập nhật: 2026-07-27
- *
- * Layout theo mockup:
- *   - Cột trái: ảnh bìa quân đội + tiêu đề + 4 tính năng nổi bật + slogan "Kỷ luật - Đồng tâm..."
- *   - Cột phải: card đăng nhập với logo tròn, form user/pass, ghi nhớ, quên mật khẩu, 4 nút chọn nhanh đơn vị
- *   - Chân trang: 3 khối liên hệ (hỗ trợ 24/7 / hướng dẫn / email)
+ * Mô tả: Trang đăng nhập - ảnh nền full màn hình, các element overlay lên trên
  */
 
 "use client"
@@ -17,23 +11,23 @@ import { App, Button, Checkbox, Form, Input, Typography, Alert } from "antd"
 import {
   UserOutlined,
   LockOutlined,
-  LoginOutlined,
   SafetyCertificateOutlined,
-  LockFilled,
-  BellOutlined,
+  TeamOutlined,
+  BarChartOutlined,
   ApiOutlined,
   PhoneOutlined,
   BookOutlined,
   MailOutlined,
   StarFilled,
+  KeyOutlined,
 } from "@ant-design/icons"
 import { useAuth } from "@/components/auth-provider"
 
 const { Title, Text } = Typography
 
-// ============================================================
-// SUB-COMPONENTS
-// ============================================================
+/* ============================================================
+   SUB-COMPONENTS
+   ============================================================ */
 
 interface FeatureItemProps {
   icon: React.ReactNode
@@ -43,18 +37,30 @@ interface FeatureItemProps {
 
 function FeatureItem({ icon, title, desc }: FeatureItemProps) {
   return (
-    <div style={{ display: "flex", alignItems: "flex-start", gap: 12 }}>
+    <div
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "10px 14px",
+        borderRadius: 12,
+        background: "rgba(255,255,255,0.12)",
+        border: "1px solid rgba(255,255,255,0.2)",
+        backdropFilter: "blur(8px)",
+        WebkitBackdropFilter: "blur(8px)",
+      }}
+    >
       <div
         style={{
           width: 36,
           height: 36,
           borderRadius: 10,
-          background: "rgba(255,255,255,0.12)",
-          border: "1px solid rgba(255,255,255,0.18)",
+          background: "rgba(46,125,50,0.18)",
+          border: "1px solid rgba(46,125,50,0.4)",
           display: "flex",
           alignItems: "center",
           justifyContent: "center",
-          color: "#f4d47c",
+          color: "#2e7d32",
           fontSize: 16,
           flexShrink: 0,
         }}
@@ -62,62 +68,10 @@ function FeatureItem({ icon, title, desc }: FeatureItemProps) {
         {icon}
       </div>
       <div>
-        <div style={{ color: "#fff", fontSize: 14, fontWeight: 600, marginBottom: 2 }}>{title}</div>
-        <div style={{ color: "rgba(255,255,255,0.65)", fontSize: 12, lineHeight: 1.5 }}>{desc}</div>
-      </div>
-    </div>
-  )
-}
-
-interface FooterItemProps {
-  icon: React.ReactNode
-  title: string
-  desc: string
-}
-
-function FooterItem({ icon, title, desc }: FooterItemProps) {
-  return (
-    <div
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 10,
-        padding: "12px 14px",
-        borderRadius: 10,
-        background: "rgba(255,255,255,0.06)",
-        border: "1px solid rgba(255,255,255,0.1)",
-        flex: 1,
-        minWidth: 0,
-      }}
-    >
-      <div
-        style={{
-          width: 34,
-          height: 34,
-          borderRadius: 8,
-          background: "rgba(212,168,67,0.15)",
-          border: "1px solid rgba(212,168,67,0.35)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          color: "#f4d47c",
-          fontSize: 15,
-          flexShrink: 0,
-        }}
-      >
-        {icon}
-      </div>
-      <div style={{ minWidth: 0 }}>
-        <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>{title}</div>
-        <div
-          style={{
-            color: "rgba(255,255,255,0.65)",
-            fontSize: 11,
-            whiteSpace: "nowrap",
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-          }}
-        >
+        <div style={{ color: "#2e7d32", fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>
+          {title}
+        </div>
+        <div style={{ color: "rgba(46,125,50,0.8)", fontSize: 11, lineHeight: 1.4, marginTop: 1 }}>
           {desc}
         </div>
       </div>
@@ -125,9 +79,9 @@ function FooterItem({ icon, title, desc }: FooterItemProps) {
   )
 }
 
-// ============================================================
-// MAIN COMPONENT
-// ============================================================
+/* ============================================================
+   MAIN COMPONENT
+   ============================================================ */
 
 export default function LoginPage() {
   const router = useRouter()
@@ -137,14 +91,12 @@ export default function LoginPage() {
   const [loading, setLoading] = useState(false)
   const [error, setError] = useState<string | null>(null)
 
-  // Redirect nếu đã đăng nhập
   useEffect(() => {
     if (!isLoading && user) {
       router.push("/")
     }
   }, [user, isLoading, router])
 
-  // Xử lý đăng nhập
   const handleLogin = async (values: { username: string; password: string }) => {
     try {
       setLoading(true)
@@ -160,367 +112,528 @@ export default function LoginPage() {
     }
   }
 
-  // Fill form nhanh với tài khoản test
   const handleQuickFill = (username: string, password: string) => {
     form.setFieldsValue({ username, password })
   }
 
   const quickAccounts = [
-    { label: "Sư đoàn 5", username: "sd5_admin", color: "#2e7d32" },
-    { label: "Trung đoàn 4", username: "tr4_manager", color: "#1565c0" },
-    { label: "Trung đoàn 5", username: "eBB5", color: "#c62828" },
-    { label: "Tiểu đoàn Bộ binh 4", username: "trd_4", color: "#6a1b9a" },
+    { label: "Sư đoàn 5", username: "sd5_admin", iconColor: "#c62828", iconBg: "#fff3e0" },
+    { label: "Trung đoàn 4", username: "tr4_manager", iconColor: "#2e7d32", iconBg: "#e8f5e9" },
+    { label: "Trung đoàn 5", username: "eBB5", iconColor: "#1565c0", iconBg: "#e3f2fd" },
+    { label: "Tiểu đoàn BB 4", username: "trd_4", iconColor: "#c62828", iconBg: "#fce4ec" },
   ]
 
   return (
     <div
       style={{
-        minHeight: "100vh",
-        background: "linear-gradient(135deg, #0f1d10 0%, #172a19 45%, #223a25 100%)",
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        padding: 24,
         position: "relative",
+        width: "100vw",
+        height: "100vh",
         overflow: "hidden",
+        fontFamily: "'Inter', 'Roboto', sans-serif",
       }}
     >
-      {/* Decorative background glow */}
+      {/* ====== FULL-SCREEN BACKGROUND IMAGE ====== */}
       <div
         style={{
           position: "absolute",
-          top: -120,
-          right: -120,
-          width: 380,
-          height: 380,
-          background: "radial-gradient(circle, rgba(212,168,67,0.18) 0%, transparent 70%)",
-          filter: "blur(20px)",
-        }}
-      />
-      <div
-        style={{
-          position: "absolute",
-          bottom: -160,
-          left: -120,
-          width: 420,
-          height: 420,
-          background: "radial-gradient(circle, rgba(46,125,50,0.25) 0%, transparent 70%)",
-          filter: "blur(20px)",
+          inset: 0,
+          backgroundImage: "url(/login-hero.png)",
+          backgroundSize: "cover",
+          backgroundPosition: "center",
+          backgroundRepeat: "no-repeat",
         }}
       />
 
-      {/* Main container */}
+      {/* Subtle dark overlay for readability */}
       <div
         style={{
-          width: "100%",
-          maxWidth: 1180,
-          background: "rgba(20,32,22,0.55)",
-          border: "1px solid rgba(255,255,255,0.08)",
-          borderRadius: 20,
-          padding: 24,
-          backdropFilter: "blur(12px)",
-          boxShadow: "0 20px 60px rgba(0,0,0,0.45)",
-          position: "relative",
+          position: "absolute",
+          inset: 0,
+          background: "linear-gradient(90deg, rgba(0,0,0,0.25) 0%, rgba(0,0,0,0.05) 50%, rgba(0,0,0,0.1) 100%)",
           zIndex: 1,
         }}
+      />
+
+      {/* ====== MAIN CONTENT ROW: features + login card ======
+          Total width: 260 + 20 + 480 = 760px
+          Right edge of card at 100px from screen right
+      */}
+      <div
+        className="login-main-row"
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          top: "46%",
+          right: 100,
+          transform: "translateY(-50%)",
+          display: "flex",
+          alignItems: "flex-start",
+          gap: 20,
+        }}
       >
+        {/* --- 4 FEATURE BOXES --- */}
         <div
+          className="login-features"
           style={{
-            display: "grid",
-            gridTemplateColumns: "minmax(0, 1.05fr) minmax(0, 1fr)",
-            gap: 24,
-            alignItems: "stretch",
+            display: "flex",
+            flexDirection: "column",
+            gap: 12,
+            width: 260,
+            flexShrink: 0,
+            marginTop: 100,
           }}
-          className="login-grid"
         >
-          {/* =================== LEFT COLUMN =================== */}
+          <FeatureItem
+            icon={<SafetyCertificateOutlined />}
+            title="BẢO MẬT TUYỆT ĐỐI"
+            desc="Mã hoá dữ liệu theo tiêu chuẩn quân sự"
+          />
+          <FeatureItem
+            icon={<TeamOutlined />}
+            title="QUẢN LÝ HIỆU QUẢ"
+            desc="Quản lý hồ sơ quân nhân tập trung"
+          />
+          <FeatureItem
+            icon={<BarChartOutlined />}
+            title="BÁO CÁO THỐNG KÊ"
+            desc="Thống kê, cảnh báo và nhắc lịch tự động"
+          />
+          <FeatureItem
+            icon={<ApiOutlined />}
+            title="KẾT NỐI LIÊN THÔNG"
+            desc="Liên thông dữ liệu giữa các đơn vị"
+          />
+        </div>
+
+        {/* --- LOGIN CARD --- */}
+        <div
+          className="login-card-wrapper"
+          style={{
+            width: 480,
+            flexShrink: 0,
+          }}
+        >
           <div
             style={{
-              position: "relative",
-              borderRadius: 14,
-              overflow: "hidden",
-              minHeight: 560,
-              backgroundImage: `linear-gradient(180deg, rgba(15,29,16,0.35) 0%, rgba(15,29,16,0.85) 100%), url(/login-hero.png)`,
-              backgroundSize: "cover",
-              backgroundPosition: "center",
-              display: "flex",
-              flexDirection: "column",
-              justifyContent: "space-between",
-              padding: "28px 26px",
+              background: "rgba(255,255,255,0.97)",
+              borderRadius: 20,
+              padding: "28px 32px 24px",
+              boxShadow: "0 16px 48px rgba(0,0,0,0.25), 0 2px 8px rgba(0,0,0,0.1)",
+              backdropFilter: "blur(12px)",
             }}
           >
-            {/* Feature list */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 16, marginTop: 24 }}>
-              <FeatureItem
-                icon={<SafetyCertificateOutlined />}
-                title="Bảo mật tuyệt đối"
-                desc="Mã hoá dữ liệu theo tiêu chuẩn quân sự"
-              />
-              <FeatureItem
-                icon={<LockFilled />}
-                title="Bảo mật 2 lớp"
-                desc="Xác thực nhiều bước cho tài khoản"
-              />
-              <FeatureItem
-                icon={<BellOutlined />}
-                title="Báo cáo thông minh"
-                desc="Thống kê, cảnh báo và nhắc lịch tự động"
-              />
-              <FeatureItem
-                icon={<ApiOutlined />}
-                title="Kết nối đồng bộ"
-                desc="Liên thông dữ liệu giữa các đơn vị"
-              />
-            </div>
-
-            {/* Slogan */}
-            <div
-              style={{
-                marginTop: 24,
-                padding: "16px 18px",
-                borderRadius: 12,
-                background: "linear-gradient(135deg, rgba(30,60,30,0.85) 0%, rgba(15,30,15,0.9) 100%)",
-                border: "1px solid rgba(212,168,67,0.35)",
-                display: "flex",
-                alignItems: "center",
-                gap: 14,
-              }}
-            >
-              <StarFilled style={{ color: "#f4d47c", fontSize: 22 }} />
-              <div>
-                <div style={{ color: "#f4d47c", fontSize: 13, fontWeight: 700, letterSpacing: 0.5 }}>
-                  KỶ LUẬT – ĐỒNG TÂM
-                </div>
-                <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12 }}>
-                  SẴN SÀNG – CHIẾN THẮNG
-                </div>
-              </div>
-              <div style={{ marginLeft: "auto", display: "flex", gap: 4 }}>
-                <StarFilled style={{ color: "#f4d47c", fontSize: 10 }} />
-                <StarFilled style={{ color: "#f4d47c", fontSize: 10 }} />
-                <StarFilled style={{ color: "#f4d47c", fontSize: 10 }} />
-              </div>
-            </div>
-          </div>
-
-          {/* =================== RIGHT COLUMN =================== */}
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: 20,
-            }}
-          >
-            {/* Login card */}
-            <div
-              style={{
-                background: "rgba(255,255,255,0.97)",
-                borderRadius: 14,
-                padding: "28px 28px 22px",
-                boxShadow: "0 8px 32px rgba(0,0,0,0.25)",
-              }}
-            >
-              {/* Header với logo tròn */}
-              <div style={{ textAlign: "center", marginBottom: 20 }}>
-                <div
-                  style={{
-                    display: "inline-flex",
-                    alignItems: "center",
-                    justifyContent: "center",
-                    width: 78,
-                    height: 78,
-                    borderRadius: "50%",
-                    background: "linear-gradient(135deg, #2e5c2e 0%, #1a3a1a 100%)",
-                    boxShadow: "0 4px 14px rgba(46,92,46,0.35)",
-                    marginBottom: 12,
-                    border: "3px solid #d4a843",
-                  }}
-                >
-                  {/* eslint-disable-next-line @next/next/no-img-element */}
-                  <img
-                    src="/logovn.jpg"
-                    alt="Logo"
-                    style={{ width: 58, height: 58, borderRadius: "50%", objectFit: "cover" }}
-                  />
-                </div>
-                <Title
-                  level={3}
-                  style={{ margin: 0, color: "#1a3a1a", letterSpacing: 1, fontWeight: 800 }}
-                >
-                  HỒ SƠ QUÂN NHÂN
-                </Title>
-                <Text style={{ color: "#5c6b5c", fontSize: 13 }}>
-                  Hệ thống quản lý thông tin quân nhân
-                </Text>
-              </div>
-
-              {/* Error Alert */}
-              {error && (
-                <Alert
-                  message={error}
-                  type="error"
-                  showIcon
-                  closable
-                  onClose={() => setError(null)}
-                  style={{ marginBottom: 16 }}
+            {/* Header with logo */}
+            <div style={{ textAlign: "center", marginBottom: 18 }}>
+              <div
+                style={{
+                  display: "inline-flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  width: 68,
+                  height: 68,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, #2e5c2e 0%, #1a3a1a 100%)",
+                  boxShadow: "0 4px 16px rgba(46,92,46,0.3)",
+                  marginBottom: 10,
+                  border: "3px solid #d4a843",
+                }}
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/logovn.jpg"
+                  alt="Logo"
+                  style={{ width: 48, height: 48, borderRadius: "50%", objectFit: "cover" }}
                 />
-              )}
+              </div>
+              <Title
+                level={3}
+                style={{ margin: 0, color: "#1a3a1a", letterSpacing: 1.5, fontWeight: 800, fontSize: 20 }}
+              >
+                HỒ SƠ QUÂN NHÂN
+              </Title>
+              <Text style={{ color: "#6b7b6b", fontSize: 12, marginTop: 2, display: "block" }}>
+                Hệ thống quản lý thông tin quân nhân
+              </Text>
+            </div>
 
-              {/* Login Form */}
-              <Form form={form} layout="vertical" onFinish={handleLogin} autoComplete="off" requiredMark={false}>
-                <Form.Item
-                  name="username"
-                  label={<span style={{ fontSize: 13, fontWeight: 500, color: "#333" }}>Tên đăng nhập</span>}
-                  rules={[
-                    { required: true, message: "Vui lòng nhập tên đăng nhập" },
-                    { min: 3, message: "Tên đăng nhập phải có ít nhất 3 ký tự" },
-                  ]}
-                  style={{ marginBottom: 14 }}
-                >
-                  <Input
-                    prefix={<UserOutlined style={{ color: "#8c8c8c" }} />}
-                    placeholder="Nhập tên đăng nhập"
-                    size="large"
-                    disabled={loading}
-                    style={{ borderRadius: 8 }}
-                  />
+            {/* Error Alert */}
+            {error && (
+              <Alert
+                message={error}
+                type="error"
+                showIcon
+                closable
+                onClose={() => setError(null)}
+                style={{ marginBottom: 12 }}
+              />
+            )}
+
+            {/* Login Form */}
+            <Form form={form} layout="vertical" onFinish={handleLogin} autoComplete="off" requiredMark={false}>
+              <Form.Item
+                name="username"
+                label={<span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>Tên đăng nhập</span>}
+                rules={[
+                  { required: true, message: "Vui lòng nhập tên đăng nhập" },
+                  { min: 3, message: "Tên đăng nhập phải có ít nhất 3 ký tự" },
+                ]}
+                style={{ marginBottom: 12 }}
+              >
+                <Input
+                  prefix={<UserOutlined style={{ color: "#8c8c8c", fontSize: 15 }} />}
+                  placeholder="Nhập tên đăng nhập"
+                  size="large"
+                  disabled={loading}
+                  style={{ borderRadius: 10, height: 44 }}
+                />
+              </Form.Item>
+
+              <Form.Item
+                name="password"
+                label={<span style={{ fontSize: 13, fontWeight: 600, color: "#333" }}>Mật khẩu</span>}
+                rules={[
+                  { required: true, message: "Vui lòng nhập mật khẩu" },
+                  { min: 6, message: "Mật khẩu phải có ít nhất 6 ký tự" },
+                ]}
+                style={{ marginBottom: 8 }}
+              >
+                <Input.Password
+                  prefix={<LockOutlined style={{ color: "#8c8c8c", fontSize: 15 }} />}
+                  placeholder="Nhập mật khẩu"
+                  size="large"
+                  disabled={loading}
+                  style={{ borderRadius: 10, height: 44 }}
+                />
+              </Form.Item>
+
+              {/* Remember + Forgot password */}
+              <div
+                style={{
+                  display: "flex",
+                  justifyContent: "space-between",
+                  alignItems: "center",
+                  marginBottom: 14,
+                }}
+              >
+                <Form.Item name="remember" valuePropName="checked" noStyle initialValue>
+                  <Checkbox style={{ fontSize: 13 }}>Ghi nhớ đăng nhập</Checkbox>
                 </Form.Item>
+                <a style={{ fontSize: 13, color: "#2e7d32", fontWeight: 500 }} href="#">
+                  Quên mật khẩu?
+                </a>
+              </div>
 
-                <Form.Item
-                  name="password"
-                  label={<span style={{ fontSize: 13, fontWeight: 500, color: "#333" }}>Mật khẩu</span>}
-                  rules={[
-                    { required: true, message: "Vui lòng nhập mật khẩu" },
-                    { min: 6, message: "Mật khẩu phải có ít nhất 6 ký tự" },
-                  ]}
-                  style={{ marginBottom: 10 }}
-                >
-                  <Input.Password
-                    prefix={<LockOutlined style={{ color: "#8c8c8c" }} />}
-                    placeholder="Nhập mật khẩu"
-                    size="large"
-                    disabled={loading}
-                    style={{ borderRadius: 8 }}
-                  />
-                </Form.Item>
-
-                {/* Ghi nhớ + quên mật khẩu */}
-                <div
+              <Form.Item style={{ marginBottom: 8 }}>
+                <Button
+                  type="primary"
+                  htmlType="submit"
+                  icon={<KeyOutlined />}
+                  size="large"
+                  block
+                  loading={loading}
                   style={{
-                    display: "flex",
-                    justifyContent: "space-between",
-                    alignItems: "center",
-                    marginBottom: 14,
+                    background: "linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)",
+                    borderColor: "#2e7d32",
+                    height: 46,
+                    fontSize: 15,
+                    fontWeight: 700,
+                    borderRadius: 10,
+                    letterSpacing: 1.5,
                   }}
                 >
-                  <Form.Item name="remember" valuePropName="checked" noStyle initialValue>
-                    <Checkbox style={{ fontSize: 13 }}>Ghi nhớ đăng nhập</Checkbox>
-                  </Form.Item>
-                  <a style={{ fontSize: 13, color: "#2e7d32", fontWeight: 500 }} href="#">
-                    Quên mật khẩu?
-                  </a>
-                </div>
+                  ĐĂNG NHẬP
+                </Button>
+              </Form.Item>
+            </Form>
 
-                <Form.Item style={{ marginBottom: 8 }}>
-                  <Button
-                    type="primary"
-                    htmlType="submit"
-                    icon={<LoginOutlined />}
-                    size="large"
-                    block
-                    loading={loading}
+            {/* Quick login section */}
+            <div style={{ marginTop: 10 }}>
+              <div style={{ textAlign: "center", marginBottom: 12, position: "relative" }}>
+                <div style={{ borderTop: "1px solid #e8e8e8", position: "relative" }}>
+                  <span
                     style={{
-                      background: "linear-gradient(135deg, #2e7d32 0%, #1b5e20 100%)",
-                      borderColor: "#2e7d32",
-                      height: 46,
-                      fontSize: 15,
-                      fontWeight: 600,
-                      borderRadius: 8,
+                      position: "absolute",
+                      top: -10,
+                      left: "50%",
+                      transform: "translateX(-50%)",
+                      background: "#fff",
+                      padding: "0 14px",
+                      fontSize: 11,
+                      fontWeight: 700,
+                      color: "#8c8c8c",
                       letterSpacing: 1,
                     }}
                   >
-                    ĐĂNG NHẬP
-                  </Button>
-                </Form.Item>
-              </Form>
-
-              {/* Quick accounts */}
-              <div style={{ marginTop: 14 }}>
-                <div
-                  style={{
-                    display: "grid",
-                    gridTemplateColumns: "1fr 1fr",
-                    gap: 10,
-                  }}
-                >
-                  {quickAccounts.map((acc) => (
-                    <button
-                      key={acc.username}
-                      type="button"
-                      onClick={() => handleQuickFill(acc.username, "123456")}
-                      disabled={loading}
-                      style={{
-                        display: "flex",
-                        alignItems: "center",
-                        gap: 8,
-                        padding: "10px 12px",
-                        border: "1px solid #e6e6e0",
-                        borderRadius: 10,
-                        background: "#fafaf5",
-                        cursor: loading ? "not-allowed" : "pointer",
-                        transition: "all 0.15s",
-                        fontSize: 13,
-                        color: "#333",
-                        textAlign: "left",
-                      }}
-                      onMouseEnter={(e) => {
-                        if (!loading) e.currentTarget.style.background = "#f0f5ec"
-                      }}
-                      onMouseLeave={(e) => {
-                        if (!loading) e.currentTarget.style.background = "#fafaf5"
-                      }}
-                    >
-                      <span
-                        style={{
-                          width: 22,
-                          height: 22,
-                          borderRadius: "50%",
-                          background: acc.color,
-                          display: "inline-flex",
-                          alignItems: "center",
-                          justifyContent: "center",
-                          color: "#fff",
-                          fontSize: 11,
-                          fontWeight: 700,
-                          flexShrink: 0,
-                        }}
-                      >
-                        {acc.label.charAt(0)}
-                      </span>
-                      <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                        {acc.label}
-                      </span>
-                    </button>
-                  ))}
+                    HOẶC ĐĂNG NHẬP NHANH
+                  </span>
                 </div>
               </div>
-            </div>
 
-            {/* Footer contacts */}
-            <div style={{ display: "flex", gap: 10 }}>
-              <FooterItem icon={<PhoneOutlined />} title="Hỗ trợ 24/7" desc="1900 xxx xxx" />
-              <FooterItem icon={<BookOutlined />} title="Hướng dẫn sử dụng" desc="Xem tài liệu" />
-              <FooterItem icon={<MailOutlined />} title="Email" desc="support@hsqn.vn" />
+              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+                {quickAccounts.map((acc) => (
+                  <button
+                    key={acc.username}
+                    type="button"
+                    onClick={() => handleQuickFill(acc.username, "123456")}
+                    disabled={loading}
+                    style={{
+                      display: "flex",
+                      alignItems: "center",
+                      gap: 10,
+                      padding: "9px 12px",
+                      border: "1px solid #e8e8e0",
+                      borderRadius: 10,
+                      background: "#fafaf7",
+                      cursor: loading ? "not-allowed" : "pointer",
+                      transition: "all 0.2s",
+                      fontSize: 12.5,
+                      fontWeight: 500,
+                      color: "#333",
+                      textAlign: "left",
+                    }}
+                    onMouseEnter={(e) => {
+                      if (!loading) {
+                        e.currentTarget.style.background = "#f0f5ec"
+                        e.currentTarget.style.borderColor = "#b5d4b5"
+                      }
+                    }}
+                    onMouseLeave={(e) => {
+                      if (!loading) {
+                        e.currentTarget.style.background = "#fafaf7"
+                        e.currentTarget.style.borderColor = "#e8e8e0"
+                      }
+                    }}
+                  >
+                    <span
+                      style={{
+                        width: 28,
+                        height: 28,
+                        borderRadius: "50%",
+                        background: acc.iconBg,
+                        border: `1.5px solid ${acc.iconColor}30`,
+                        display: "inline-flex",
+                        alignItems: "center",
+                        justifyContent: "center",
+                        color: acc.iconColor,
+                        fontSize: 12,
+                        fontWeight: 800,
+                        flexShrink: 0,
+                      }}
+                    >
+                      {acc.label.charAt(0)}
+                    </span>
+                    <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {acc.label}
+                    </span>
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
         </div>
       </div>
 
-      {/* Responsive: mobile stack */}
+      {/* ====== SLOGAN BOX - bottom left, glass effect ====== */}
+      <div
+        className="login-slogan"
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          bottom: 76,
+          left: 40,
+          padding: "16px 24px 14px",
+          borderRadius: 14,
+          background: "rgba(20,40,20,0.45)",
+          border: "1px solid rgba(212,168,67,0.35)",
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          textAlign: "center",
+          minWidth: 240,
+        }}
+      >
+        {/* Star icon + text */}
+        <div style={{ display: "flex", alignItems: "center", gap: 12, justifyContent: "center" }}>
+          <div
+            style={{
+              width: 38,
+              height: 38,
+              borderRadius: "50%",
+              background: "rgba(212,168,67,0.2)",
+              border: "1.5px solid rgba(212,168,67,0.5)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+            }}
+          >
+            <StarFilled style={{ color: "#f4d47c", fontSize: 17 }} />
+          </div>
+          <div style={{ textAlign: "left" }}>
+            <div style={{ color: "#f4d47c", fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
+              KỶ LUẬT – ĐỒNG TÂM
+            </div>
+            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 }}>
+              SẴN SÀNG – CHIẾN THẮNG
+            </div>
+          </div>
+        </div>
+        {/* 3 stars with lines on both sides */}
+        <div
+          style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            gap: 6,
+            marginTop: 10,
+          }}
+        >
+          <div style={{ flex: 1, height: 1, background: "rgba(212,168,67,0.4)" }} />
+          <div style={{ display: "flex", gap: 5 }}>
+            <StarFilled style={{ color: "#f4d47c", fontSize: 8 }} />
+            <StarFilled style={{ color: "#f4d47c", fontSize: 8 }} />
+            <StarFilled style={{ color: "#f4d47c", fontSize: 8 }} />
+          </div>
+          <div style={{ flex: 1, height: 1, background: "rgba(212,168,67,0.4)" }} />
+        </div>
+      </div>
+
+      {/* ====== FOOTER BAR - below login card, glass effect ======
+          Width = features(260) + gap(20) + card(480) = 760px
+          Aligned with main content row (right: 100)
+      */}
+      <div
+        className="login-footer"
+        style={{
+          position: "absolute",
+          zIndex: 10,
+          bottom: 20,
+          right: 100,
+          width: 760,
+          background: "rgba(20,40,20,0.4)",
+          border: "1px solid rgba(255,255,255,0.15)",
+          borderRadius: 14,
+          backdropFilter: "blur(16px)",
+          WebkitBackdropFilter: "blur(16px)",
+          padding: "10px 24px",
+          display: "flex",
+          justifyContent: "center",
+          alignItems: "center",
+          gap: 20,
+        }}
+      >
+        {/* Footer item 1 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "rgba(212,168,67,0.15)",
+              border: "1px solid rgba(212,168,67,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#f4d47c",
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            <PhoneOutlined />
+          </div>
+          <div>
+            <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>Hỗ trợ 24/7</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>Đội ngũ luôn sẵn sàng hỗ trợ</div>
+          </div>
+        </div>
+
+        {/* Footer item 2 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "rgba(212,168,67,0.15)",
+              border: "1px solid rgba(212,168,67,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#f4d47c",
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            <BookOutlined />
+          </div>
+          <div>
+            <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>Hướng dẫn sử dụng</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>Tài liệu và hướng dẫn chi tiết</div>
+          </div>
+        </div>
+
+        {/* Footer item 3 */}
+        <div style={{ display: "flex", alignItems: "center", gap: 10, flex: 1 }}>
+          <div
+            style={{
+              width: 32,
+              height: 32,
+              borderRadius: 8,
+              background: "rgba(212,168,67,0.15)",
+              border: "1px solid rgba(212,168,67,0.3)",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              color: "#f4d47c",
+              fontSize: 14,
+              flexShrink: 0,
+            }}
+          >
+            <MailOutlined />
+          </div>
+          <div>
+            <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>Liên hệ quản trị</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>quantri@hsqn.mil.vn</div>
+          </div>
+        </div>
+      </div>
+
+      {/* ====== RESPONSIVE ====== */}
       <style jsx>{`
-        @media (max-width: 900px) {
-          :global(.login-grid) {
-            grid-template-columns: 1fr !important;
+        @media (max-width: 1100px) {
+          :global(.login-main-row) {
+            gap: 16px !important;
+          }
+          :global(.login-features) {
+            width: 220px !important;
+          }
+          :global(.login-card-wrapper) {
+            width: 420px !important;
+          }
+          :global(.login-footer) {
+            width: 660px !important;
+          }
+        }
+        @media (max-width: 768px) {
+          :global(.login-main-row) {
+            flex-direction: column !important;
+            align-items: center !important;
+            top: 50% !important;
+            gap: 16px !important;
+          }
+          :global(.login-features) {
+            width: 100% !important;
+            max-width: 400px !important;
+          }
+          :global(.login-card-wrapper) {
+            width: 100% !important;
+            max-width: 400px !important;
+          }
+          :global(.login-slogan) {
+            display: none !important;
+          }
+          :global(.login-footer) {
+            width: calc(100% - 40px) !important;
           }
         }
       `}</style>

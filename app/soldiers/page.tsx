@@ -15,6 +15,7 @@ import { PageLayout } from "@/components/page-layout"
 import { StatusTag } from "@/components/status-tag"
 import { SoldierForm } from "@/components/soldier-form"
 import { ChangeReportTab } from "@/components/change-report-tab"
+import SendNotificationTab from "@/components/send-notification-tab"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
 
@@ -112,11 +113,11 @@ export default function SoldierListPage() {
   const debouncedSearch = useDebounce(search, 400)
   const debouncedTreeSearchText = useDebounce(unitSearchText, 400)
 
-  const [activeTab, setActiveTab] = useState<"all" | "active" | "discharged" | "changelog">("all")
+  const [activeTab, setActiveTab] = useState<"all" | "active" | "discharged" | "changelog" | "notification">("all")
   const [soldierFormOpen, setSoldierFormOpen] = useState(false)
   const [editingSoldier, setEditingSoldier] = useState<SoldierData | null>(null)
 
-  const handleAddSoldier = () => { setEditingSoldier(null); setSoldierFormOpen(true) }
+  const handleAddSoldier = () => { router.push('/soldiers/add') }
   const handleEditSoldier = (soldier: SoldierData) => { setEditingSoldier(soldier); setSoldierFormOpen(true) }
   const handleFormSuccess = () => { void loadSoldiers('0'); void loadSoldiers('1') }
 
@@ -276,7 +277,7 @@ export default function SoldierListPage() {
 
   const handleBellClick = () => setActiveTab("changelog")
 
-  const handleImportExcel = () => fileInputRef.current?.click()
+  const handleImportExcel = () => router.push('/soldiers/import')
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0]; if (!file) return
     const reader = new FileReader()
@@ -362,20 +363,17 @@ export default function SoldierListPage() {
       render: (status: string) => <StatusTag status={status} />,
     },
     {
-      title: "Thao tác", key: "actions", width: 110, align: "center", fixed: "right",
+      title: "Thao tác", key: "actions", width: 80, align: "center", fixed: "right",
       render: (_, record) => (
         <Space size={4}>
-          <Tooltip title="Xem chi tiết">
-            <Button type="text" size="small" icon={<EyeOutlined style={{ color: "#616161" }} />} onClick={() => router.push(`/soldiers/${record.SoldierID}`)} />
-          </Tooltip>
           {hasPermission("canEdit") && (
             <Tooltip title="Sửa">
-              <Button type="text" size="small" icon={<EditOutlined style={{ color: "#fb8c00" }} />} onClick={() => handleEditSoldier(record)} />
+              <Button type="text" size="small" icon={<EditOutlined style={{ color: "#fb8c00" }} />} onClick={(e) => { e.stopPropagation(); handleEditSoldier(record) }} />
             </Tooltip>
           )}
           {hasPermission("canDelete") && (
             <Tooltip title="Xoá">
-              <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={() => handleDelete(record)} />
+              <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); handleDelete(record) }} />
             </Tooltip>
           )}
         </Space>
@@ -439,11 +437,12 @@ export default function SoldierListPage() {
           { key: "active", label: `Đang công tác (${activeCount})` },
           { key: "discharged", label: `Đã xuất ngũ (${dischargedCount})` },
           { key: "changelog", label: `Báo cáo chờ xử lý (${pendingCount})` },
+          { key: "notification", label: `Gửi thông báo` },
         ]}
       />
 
       {/* Table */}
-      {activeTab !== "changelog" && (
+      {activeTab !== "changelog" && activeTab !== "notification" && (
         <Card styles={{ body: { padding: 0 } }} style={{ borderRadius: 8 }}>
           <Table<SoldierData>
             rowKey="SoldierID"
@@ -451,6 +450,10 @@ export default function SoldierListPage() {
             dataSource={currentData}
             loading={loading}
             scroll={{ x: 1200 }}
+            onRow={(record) => ({
+              onClick: () => router.push(`/soldiers/${record.SoldierID}`),
+              style: { cursor: 'pointer' },
+            })}
             pagination={{
               current: currentPagination.current,
               pageSize: currentPagination.pageSize,
@@ -471,6 +474,7 @@ export default function SoldierListPage() {
       )}
 
       {activeTab === "changelog" && <ChangeReportTab />}
+      {activeTab === "notification" && <SendNotificationTab />}
 
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleFileChange} />
 

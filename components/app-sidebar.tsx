@@ -12,11 +12,12 @@ import {
   TeamOutlined,
   UserAddOutlined,
   BarChartOutlined,
-  ApartmentOutlined,
   FileTextOutlined,
   HistoryOutlined,
   SettingOutlined,
   StarFilled,
+  SafetyCertificateOutlined,
+  BellOutlined,
 } from "@ant-design/icons"
 
 const { Sider } = Layout
@@ -33,9 +34,10 @@ const menuItems: SidebarItem[] = [
   { key: "soldiers", icon: <TeamOutlined />, label: "Danh sách quân nhân", path: "/soldiers" },
   { key: "add", icon: <UserAddOutlined />, label: "Thêm quân nhân", path: "/soldiers/add" },
   { key: "reports", icon: <BarChartOutlined />, label: "Báo cáo – Thống kê", path: "/reports" },
-  { key: "units", icon: <ApartmentOutlined />, label: "Quản lý đơn vị", path: "/units" },
   { key: "documents", icon: <FileTextOutlined />, label: "Tài liệu quân lực", path: "/documents" },
+  { key: "permissionRequests", icon: <BellOutlined />, label: "Yêu cầu cấp quyền", path: "/permission-requests" },
   { key: "history", icon: <HistoryOutlined />, label: "Lịch sử thay đổi", path: "/change-history" },
+  { key: "permissions", icon: <SafetyCertificateOutlined />, label: "Quản lý quyền", path: "/permissions" },
   { key: "settings", icon: <SettingOutlined />, label: "Cài đặt hệ thống", path: "/settings" },
 ]
 
@@ -45,11 +47,13 @@ export function AppSidebar() {
 
   const getActiveKey = () => {
     if (pathname === "/") return "overview"
+    if (pathname === "/soldiers/add") return "add"
     if (pathname.startsWith("/soldiers")) return "soldiers"
     if (pathname.startsWith("/reports")) return "reports"
-    if (pathname.startsWith("/units")) return "units"
     if (pathname.startsWith("/documents")) return "documents"
+    if (pathname.startsWith("/permission-requests")) return "permissionRequests"
     if (pathname.startsWith("/change-history")) return "history"
+    if (pathname.startsWith("/permissions")) return "permissions"
     if (pathname.startsWith("/settings")) return "settings"
     return "overview"
   }
@@ -123,10 +127,14 @@ export function AppSidebar() {
           textAlign: "center",
         }}
       >
-        <div style={{ fontSize: 13, color: "rgba(255,255,255,0.85)", fontWeight: 500, lineHeight: 1.6 }}>
-          Kỷ luật – Đồng tâm
+        <div style={{ fontSize: 12, color: "rgba(255,255,255,0.85)", fontWeight: 500, lineHeight: 1.6, textAlign: "center" }}>
+          Đoàn kết Trung Dũng
           <br />
-          Sẵn sàng – Chiến thắng
+          Chủ động linh hoạt
+          <br />
+          Tự lực tự cường
+          <br />
+          Đánh thắng mọi kẻ thù
         </div>
         <StarFilled style={{ color: "#d4a843", fontSize: 16, marginTop: 10 }} />
       </div>

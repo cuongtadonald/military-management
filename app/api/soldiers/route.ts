@@ -143,6 +143,36 @@ export async function POST(request: NextRequest) {
     const maxNum = maxIdResult.recordset[0]?.MaxNum || 0;
     const newSoldierID = `S${String(maxNum + 1).padStart(4, '0')}`;
 
+    // Xử lý upload ảnh nếu có (base64)
+    let photoPath = null;
+    if (body.PhotoData) {
+      try {
+        const { writeFile, mkdir } = await import('fs/promises');
+        const { existsSync } = await import('fs');
+        const path = await import('path');
+        
+        const uploadDir = path.join(process.cwd(), 'public', 'uploads', 'soldiers');
+        if (!existsSync(uploadDir)) {
+          await mkdir(uploadDir, { recursive: true });
+        }
+
+        // Extract base64 data
+        const matches = body.PhotoData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
+        if (matches) {
+          const extension = matches[1] === 'jpeg' ? 'jpg' : matches[1];
+          const fileName = `${newSoldierID}_${Date.now()}.${extension}`;
+          const filePath = path.join(uploadDir, fileName);
+          
+          const buffer = Buffer.from(matches[2], 'base64');
+          await writeFile(filePath, buffer);
+          
+          photoPath = `/uploads/soldiers/${fileName}`;
+        }
+      } catch (error) {
+        console.error('Lỗi khi xử lý ảnh:', error);
+      }
+    }
+
     // Thêm chiến sĩ mới
     await pool.request()
       .input('SoldierID', sql.VarChar, newSoldierID)
@@ -172,6 +202,8 @@ export async function POST(request: NextRequest) {
       .input('YouthUnionJoinDate', sql.Date, body.YouthUnionJoinDate)
       .input('WardID', sql.VarChar, body.WardID)
       .input('ProvinceID', sql.VarChar, body.ProvinceID)
+      .input('PhotoPath', sql.NVarChar, photoPath)
+      .input('SoldierType', sql.VarChar, body.SoldierType)
       .input('CreatedBy', sql.VarChar, body.CreatedBy)
       .query(`
         INSERT INTO Soldier (
@@ -182,7 +214,7 @@ export async function POST(request: NextRequest) {
           Height, Weight, BloodPressure, BloodType, HealthClassification,
           Hometown, Address, WardID, ProvinceID,
           EnlistmentDate, PartyJoinDate, YouthUnionJoinDate,
-          CreatedDate, CreatedBy
+          PhotoPath, SoldierType, CreatedDate, CreatedBy
         ) VALUES (
           @SoldierID, @FullName, @DateOfBirth, @Gender, @CitizenID,
           @UnitID, @Position, @RankID, @StatusID,
@@ -191,9 +223,85 @@ export async function POST(request: NextRequest) {
           @Height, @Weight, @BloodPressure, @BloodType, @HealthClassification,
           @Hometown, @Address, @WardID, @ProvinceID,
           @EnlistmentDate, @PartyJoinDate, @YouthUnionJoinDate,
-          GETDATE(), @CreatedBy
+          @PhotoPath, @SoldierType, GETDATE(), @CreatedBy
         )
       `);
+
+    // Lưu FamilyMembers nếu có
+    if (body.FamilyMembers && Array.isArray(body.FamilyMembers)) {
+      for (const member of body.FamilyMembers) {
+        if (member.FullName && member.Relationship) {
+          await pool.request()
+            .input('SoldierID', sql.VarChar, newSoldierID)
+            .input('FullName', sql.NVarChar, member.FullName)
+            .input('Relationship', sql.NVarChar, member.Relationship)
+            .input('DateOfBirth', sql.Date, member.DateOfBirth || null)
+            .input('Occupation', sql.NVarChar, member.Occupation)
+            .input('Workplace', sql.NVarChar, member.Workplace)
+            .input('PhoneNumber', sql.VarChar, member.PhoneNumber)
+            .input('Address', sql.NVarChar, member.Address)
+            .input('IsDependent', sql.Bit, member.IsDependent ? 1 : 0)
+            .query(`
+              INSERT INTO SoldierFamily (
+                SoldierID, FullName, Relationship, DateOfBirth,
+                Occupation, Workplace, PhoneNumber, Address, IsDependent
+              ) VALUES (
+                @SoldierID, @FullName, @Relationship, @DateOfBirth,
+                @Occupation, @Workplace, @PhoneNumber, @Address, @IsDependent
+              )
+            `);
+        }
+      }
+    }
+
+    // Lưu TrainingProcesses nếu có
+    if (body.TrainingProcesses && Array.isArray(body.TrainingProcesses)) {
+      for (const training of body.TrainingProcesses) {
+        if (training.SchoolName) {
+          await pool.request()
+            .input('SoldierID', sql.VarChar, newSoldierID)
+            .input('SchoolName', sql.NVarChar, training.SchoolName)
+            .input('MajorName', sql.NVarChar, training.MajorName)
+            .input('FromDate', sql.Date, training.FromDate || null)
+            .input('ToDate', sql.Date, training.ToDate || null)
+            .input('TrainingType', sql.NVarChar, training.TrainingType)
+            .input('Certificate', sql.NVarChar, training.Certificate)
+            .input('Description', sql.NVarChar, training.Description)
+            .query(`
+              INSERT INTO TrainingProcess (
+                SoldierID, SchoolName, MajorName, FromDate, ToDate,
+                TrainingType, Certificate, Description
+              ) VALUES (
+                @SoldierID, @SchoolName, @MajorName, @FromDate, @ToDate,
+                @TrainingType, @Certificate, @Description
+              )
+            `);
+        }
+      }
+    }
+
+    // Lưu WorkProcesses nếu có
+    if (body.WorkProcesses && Array.isArray(body.WorkProcesses)) {
+      for (const work of body.WorkProcesses) {
+        if (work.WorkDescription || work.FromDate || work.ToDate) {
+          await pool.request()
+            .input('SoldierID', sql.VarChar, newSoldierID)
+            .input('FromDate', sql.Date, work.FromDate || null)
+            .input('ToDate', sql.Date, work.ToDate || null)
+            .input('WorkDescription', sql.NVarChar, work.WorkDescription)
+            .input('RankID', sql.VarChar, work.RankID)
+            .input('PartyPosition', sql.NVarChar, work.PartyPosition)
+            .input('Description', sql.NVarChar, work.Description)
+            .query(`
+              INSERT INTO WorkProcess (
+                SoldierID, FromDate, ToDate, WorkDescription, RankID, PartyPosition, Description
+              ) VALUES (
+                @SoldierID, @FromDate, @ToDate, @WorkDescription, @RankID, @PartyPosition, @Description
+              )
+            `);
+        }
+      }
+    }
 
     await createChangeHistory({
       pool,
