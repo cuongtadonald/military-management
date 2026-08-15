@@ -153,7 +153,7 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
   const [form] = Form.useForm()
   const [familyForm] = Form.useForm()
   const [loading, setLoading] = useState(false)
-
+  
   // Dropdown data
   const [unitTree, setUnitTree] = useState<any[]>([])
   const [rankOptions, setRankOptions] = useState<any[]>([])
@@ -161,17 +161,17 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
   const [wardOptions, setWardOptions] = useState<any[]>([])
   const [religionOptions, setReligionOptions] = useState<any[]>([])
   const [maritalOptions, setMaritalOptions] = useState<any[]>([])
-
+  
   // State cho Ward filter theo Province
   const [selectedProvinceId, setSelectedProvinceId] = useState<string | undefined>(undefined)
-
+  
   // State cho tab và thân nhân
   const [activeTab, setActiveTab] = useState("info")
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([])
   const [workProcesses, setWorkProcesses] = useState<WorkProcess[]>([])
   const [trainingProcesses, setTrainingProcesses] = useState<TrainingProcess[]>([])
   const [editingFamilyIndex, setEditingFamilyIndex] = useState<number | null>(null)
-
+  
   // Modal popup cho sửa thân nhân
   const [familyModalVisible, setFamilyModalVisible] = useState(false)
 
@@ -206,35 +206,35 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
       ])
 
       setRankOptions(
-        (ranks || []).map((r: any) => ({
-          value: r.RankID,
-          label: r.RankName,
-        }))
-      );
+  (ranks || []).map((r: any) => ({
+    value: r.RankID,
+    label: r.RankName,
+  }))
+);
 
-      setProvinceOptions(
-        (provinces || []).map((p: any) => ({
-          value: p.ProvinceID,
-          label: p.ProvinceName,
-        }))
-      );
+setProvinceOptions(
+  (provinces || []).map((p: any) => ({
+    value: p.ProvinceID,
+    label: p.ProvinceName,
+  }))
+);
 
-      setWardOptions(wards || []);
+setWardOptions(wards || []);
 
-      setReligionOptions(
-        (religions || []).map((r: any) => ({
-          value: r.ReligionID,
-          label: r.ReligionName,
-        }))
-      );
+setReligionOptions(
+  (religions || []).map((r: any) => ({
+    value: r.ReligionID,
+    label: r.ReligionName,
+  }))
+);
 
-      setMaritalOptions(
-        (maritals || []).map((m: any) => ({
-          value: m.MaritalStatusID,
-          label: m.MaritalStatusName,
-        }))
-      );
-
+setMaritalOptions(
+  (maritals || []).map((m: any) => ({
+    value: m.MaritalStatusID,
+    label: m.MaritalStatusName,
+  }))
+);
+      
       if (units.success) {
         setUnitTree(units.data || [])
       }
@@ -244,25 +244,25 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
   }
 
   const fetchDropdown = async (mode: string) => {
-    try {
-      const response = await fetch(`/api/dropdowns?userId=${user?.userId}&mode=${mode}`);
-      const result = await response.json();
+  try {
+    const response = await fetch(`/api/dropdowns?userId=${user?.userId}&mode=${mode}`);
+    const result = await response.json();
 
-      return Array.isArray(result.data) ? result.data : [];
-    } catch (err) {
-      console.error(mode, err);
-      return [];
-    }
-  };
+    return Array.isArray(result.data) ? result.data : [];
+  } catch (err) {
+    console.error(mode, err);
+    return [];
+  }
+};
 
   // ============================================================
   // FILTER WARD THEO PROVINCE
   // ============================================================
 
-  const filteredWardOptions = selectedProvinceId
+  const filteredWardOptions = selectedProvinceId 
     ? wardOptions
-      .filter((w: any) => w.ProvinceID === selectedProvinceId)
-      .map((w: any) => ({ value: w.WardID, label: w.WardName }))
+        .filter((w: any) => w.ProvinceID === selectedProvinceId)
+        .map((w: any) => ({ value: w.WardID, label: w.WardName }))
     : []
 
   const handleProvinceChange = (provinceId: string) => {
@@ -285,7 +285,7 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
           EnlistmentDate: soldier.EnlistmentDate ? dayjs(soldier.EnlistmentDate) : null,
           PartyJoinDate: soldier.PartyJoinDate ? dayjs(soldier.PartyJoinDate) : null,
           YouthUnionJoinDate: soldier.YouthUnionJoinDate ? dayjs(soldier.YouthUnionJoinDate) : null,
-
+          
           // Các trường ID cho dropdown (từ SP W01P0001 đã sửa)
           RankID: soldier.RankID,
           Religion: soldier.Religion,
@@ -293,13 +293,13 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
           ProvinceID: soldier.ProvinceID,
           WardID: soldier.WardID,
         }
-
+        
         form.setFieldsValue(formData)
         // Set Province để filter Ward
         if (soldier.ProvinceID) {
           setSelectedProvinceId(soldier.ProvinceID)
         }
-
+        
         setWorkProcesses(Array.isArray(soldier.workProcesses) ? soldier.workProcesses : [])
         setTrainingProcesses(Array.isArray(soldier.trainingProcesses) ? soldier.trainingProcesses : [])
         loadFamilyMembers()
@@ -395,24 +395,24 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
 
       if (result.success) {
         const soldierID = isEditMode ? soldier.SoldierID : result.data?.SoldierID
-
+        
         // Upload ảnh nếu có
         if (photoFile && soldierID) {
           const formData = new FormData()
           formData.append('photo', photoFile)
           formData.append('userId', user?.userId || '')
-
+          
           const uploadResponse = await fetch(`/api/soldiers/${soldierID}/photo`, {
             method: 'POST',
             body: formData,
           })
           const uploadResult = await uploadResponse.json()
-
+          
           if (!uploadResult.success) {
             console.warn('Upload ảnh thất bại:', uploadResult.message)
           }
         }
-
+        
         if (soldierID) {
           await saveFamilyMembers(soldierID)
           await saveWorkProcesses(soldierID)
@@ -499,11 +499,11 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
       Address: member.Address,
       IsDependent: !!member.IsDependent,
     }
-
+    
     if (member.DateOfBirth) {
       formValues.DateOfBirth = dayjs(member.DateOfBirth)
     }
-
+    
     familyForm.setFieldsValue(formValues)
     setEditingFamilyIndex(index)
     setFamilyModalVisible(true)
@@ -633,8 +633,7 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
             initialValues={{
               Gender: 1,
               Ethnicity: "Kinh",
-              // ReligionID: "REL001",
-              Religion: "Không",
+              ReligionID: "REL001",
               MaritalStatusID: "MAR001",
               StatusID: "ST001",
               HealthClassification: "Loại 1",
@@ -646,10 +645,10 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
               {/* Upload ảnh bên trái */}
               <Col span={4}>
                 <div style={{ textAlign: "center", marginBottom: 16 }}>
-                  <Avatar
-                    size={100}
-                    src={photoPreview || (isEditMode && soldier?.PhotoPath)}
-                    icon={<UserOutlined />}
+                  <Avatar 
+                    size={100} 
+                    src={photoPreview || (isEditMode && soldier?.PhotoPath)} 
+                    icon={<UserOutlined />} 
                     style={{ backgroundColor: "#4b5320", marginBottom: 8 }}
                   />
                   <Upload
@@ -667,24 +666,13 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
                   </Upload>
                 </div>
               </Col>
-
+              
               {/* Các trường thông tin bên phải */}
               <Col span={20}>
                 <Row gutter={16}>
-                  {/* <Col span={8}>
+                  <Col span={8}>
                     <Form.Item name="SoldierID" label="Mã quân nhân" rules={[{ required: true, message: "Nhập mã quân nhân" }]}>
                       <Input placeholder="VD: S001" />
-                    </Form.Item>
-                  </Col> */}
-                  <Col span={8}>
-                    <Form.Item
-                      name="SoldierID"
-                      label="Mã quân nhân"
-                    >
-                      <Input
-                        placeholder="Tự động tạo"
-                        disabled
-                      />
                     </Form.Item>
                   </Col>
                   <Col span={10}>
@@ -736,7 +724,7 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
             <Row gutter={16}>
               <Col span={4}>
                 <Form.Item name="Ethnicity" label="Dân tộc">
-                  <Input placeholder="Nhập dân tộc" />
+                  <Select options={ETHNICITY_OPTIONS} />
                 </Form.Item>
               </Col>
               <Col span={5}>
@@ -923,7 +911,7 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
                   <Card
                     key={member.FamilyID || `new-${idx}`}
                     size="small"
-                    style={{
+                    style={{ 
                       background: member.isNew ? "#f6ffed" : "#fafafa",
                       border: member.isNew ? "1px solid #b7eb8f" : "1px solid #d9d9d9",
                     }}

@@ -37,13 +37,10 @@ interface SoldierDetail {
   UnitFullPath: string
   UnitShortName: string
   Position: string
-  RankID: string
   RankName: string
-  StatusID: string
   StatusName: string
   Ethnicity: string
-  Religion: string
-  MaritalStatusID: string
+  ReligionName: string
   MaritalStatusName: string
   EducationLevel: string
   Specialization: string
@@ -55,9 +52,7 @@ interface SoldierDetail {
   BloodPressure: string
   Hometown: string
   Address: string
-  WardID: string
   CurrentWard: string
-  ProvinceID: string
   CurrentProvince: string
   EnlistmentDate: string
   PartyJoinDate: string
@@ -139,7 +134,7 @@ export default function SoldierDetailPage() {
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [soldierFormOpen, setSoldierFormOpen] = useState(false)
-
+  
   // Photo management
   const [photoModalVisible, setPhotoModalVisible] = useState(false)
   const [photoPreview, setPhotoPreview] = useState<string | null>(null)
@@ -311,10 +306,10 @@ export default function SoldierDetailPage() {
         <Col xs={24} lg={16}>
           <div style={{ display: "flex", gap: 20, marginBottom: 20 }}>
             <div style={{ position: "relative", flexShrink: 0 }}>
-              <Avatar
-                size={100}
-                src={soldier.PhotoPath ? `${soldier.PhotoPath}?t=${Date.now()}` : undefined}
-                icon={<UserOutlined />}
+              <Avatar 
+                size={100} 
+                src={soldier.PhotoPath ? `${soldier.PhotoPath}?t=${Date.now()}` : undefined} 
+                icon={<UserOutlined />} 
                 style={{ background: "#4b5320", cursor: soldier.PhotoPath ? "pointer" : "default" }}
                 onClick={handleViewPhoto}
               />
@@ -326,8 +321,8 @@ export default function SoldierDetailPage() {
                       beforeUpload={handleUploadPhoto}
                       showUploadList={false}
                     >
-                      <Button
-                        size="small"
+                      <Button 
+                        size="small" 
                         icon={<EditOutlined />}
                         loading={photoUploading}
                         style={{ width: 28, height: 28, padding: 0 }}
@@ -335,8 +330,8 @@ export default function SoldierDetailPage() {
                     </Upload>
                   </Tooltip>
                   <Tooltip title="Xóa ảnh">
-                    <Button
-                      size="small"
+                    <Button 
+                      size="small" 
                       icon={<DeleteOutlined />}
                       danger
                       onClick={handleDeletePhoto}
@@ -351,8 +346,8 @@ export default function SoldierDetailPage() {
                   beforeUpload={handleUploadPhoto}
                   showUploadList={false}
                 >
-                  <Button
-                    size="small"
+                  <Button 
+                    size="small" 
                     icon={<UploadOutlined />}
                     loading={photoUploading}
                     style={{ position: "absolute", bottom: -8, left: "50%", transform: "translateX(-50%)", fontSize: 11 }}
@@ -374,45 +369,7 @@ export default function SoldierDetailPage() {
                   </div>
                 </Descriptions.Item>
                 <Descriptions.Item label="Chức vụ">{soldier.Position || "—"}</Descriptions.Item>
-                <Descriptions.Item label="Đơn vị">
-                  {(() => {
-                    const units = (soldier.UnitFullPath || "")
-                      .split(",")
-                      .map((item) => item.trim())
-                      .filter(Boolean);
-
-                    const currentUnit =
-                      units[units.length - 1] || soldier.UnitName || "—";
-
-                    const parentUnits = units.slice(0, -1);
-
-                    return (
-                      <div style={{ lineHeight: 1.4 }}>
-                        {parentUnits.length > 0 && (
-                          <div
-                            style={{
-                              fontSize: 12,
-                              color: "#999",
-                              marginBottom: 3,
-                            }}
-                          >
-                            {parentUnits.join(", ")}
-                          </div>
-                        )}
-
-                        <div
-                          style={{
-                            fontSize: 14,
-                            fontWeight: 500,
-                            color: "#222",
-                          }}
-                        >
-                          {currentUnit}
-                        </div>
-                      </div>
-                    );
-                  })()}
-                </Descriptions.Item>
+                <Descriptions.Item label="Đơn vị">{soldier.UnitName || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Quê quán">{soldier.Hometown || "—"}</Descriptions.Item>
                 <Descriptions.Item label="Thường trú">{[soldier.Address, soldier.CurrentWard, soldier.CurrentProvince].filter(Boolean).join(', ') || "—"}</Descriptions.Item>
               </Descriptions>
@@ -429,7 +386,7 @@ export default function SoldierDetailPage() {
                 </span>
               </Descriptions.Item>
               <Descriptions.Item label="Dân tộc">{soldier.Ethnicity || "Kinh"}</Descriptions.Item>
-              <Descriptions.Item label="Tôn giáo">{soldier.Religion || "Không"}</Descriptions.Item>
+              <Descriptions.Item label="Tôn giáo">{soldier.ReligionName || "Không"}</Descriptions.Item>
               <Descriptions.Item label="Số CCCD">{soldier.CitizenID || "—"}</Descriptions.Item>
               <Descriptions.Item label="Ngày cấp">—</Descriptions.Item>
             </Descriptions>
@@ -443,23 +400,23 @@ export default function SoldierDetailPage() {
               <Descriptions.Item label="Ngày nhập ngũ">{formatDate(soldier.EnlistmentDate)}</Descriptions.Item>
               <Descriptions.Item label="Thâm niên quân ngũ">{calcSeniority(soldier.EnlistmentDate)}</Descriptions.Item>
               <Descriptions.Item label="Loại quân nhân">
-                {soldier.SoldierType === 'SQ' ? 'Sĩ quan' :
-                  soldier.SoldierType === 'QNCN' ? 'Quân nhân chuyên nghiệp' :
-                    soldier.SoldierType === 'HSQ-CS' ? 'Hạ sĩ quan - Chiến sĩ' :
-                      soldier.SoldierType || '—'}
+                {soldier.SoldierType === 'SQ' ? 'Sĩ quan' : 
+                 soldier.SoldierType === 'QNCN' ? 'Quân nhân chuyên nghiệp' : 
+                 soldier.SoldierType === 'HSQ-CS' ? 'Hạ sĩ quan - Chiến sĩ' : 
+                 soldier.SoldierType || '—'}
               </Descriptions.Item>
               <Descriptions.Item label="Hình thức phục vụ">Chuyên nghiệp</Descriptions.Item>
               <Descriptions.Item label="Tình trạng hôn nhân">{soldier.MaritalStatusName || "—"}</Descriptions.Item>
-              {/* <Descriptions.Item label="Số điện thoại">{soldier.Phone || "—"}</Descriptions.Item>
-              <Descriptions.Item label="Email">{soldier.Email || "—"}</Descriptions.Item> */}
+              <Descriptions.Item label="Số điện thoại">{soldier.Phone || "—"}</Descriptions.Item>
+              <Descriptions.Item label="Email">{soldier.Email || "—"}</Descriptions.Item>
             </Descriptions>
           </Card>
         </Col>
       </Row>
 
-      {/* 3 Cards: Trình độ, Khen thưởng, Kỷ luật - Tạm thời ẩn Khen thưởng và Kỷ luật */}
+      {/* 3 Cards: Trình độ, Khen thưởng, Kỷ luật */}
       <Row gutter={[16, 16]}>
-        <Col xs={24} md={24}>
+        <Col xs={24} md={8}>
           <Card size="small" style={{ borderRadius: 8, height: "100%" }} styles={{ body: { padding: "14px 16px" } }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <ReadOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />
@@ -479,8 +436,7 @@ export default function SoldierDetailPage() {
             </div>
           </Card>
         </Col>
-        {/* Tạm thời ẩn Khen thưởng và Kỷ luật */}
-        {/* <Col xs={24} md={8}>
+        <Col xs={24} md={8}>
           <Card size="small" style={{ borderRadius: 8, height: "100%" }} styles={{ body: { padding: "14px 16px" } }}>
             <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
               <TrophyOutlined style={{ fontSize: 20, color: "#d4a843" }} />
@@ -505,11 +461,11 @@ export default function SoldierDetailPage() {
               <span>Không có kỷ luật</span>
             </div>
           </Card>
-        </Col> */}
+        </Col>
       </Row>
 
       {/* Family section */}
-      {/* <div>
+      <div>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
           <Typography.Text strong style={{ fontSize: 15 }}>Gia đình</Typography.Text>
         </div>
@@ -527,7 +483,7 @@ export default function SoldierDetailPage() {
             { title: "Nơi công tác", dataIndex: "Workplace", width: 200, render: (v: string) => v || "—" },
           ]}
         />
-      </div> */}
+      </div>
     </div>
   )
 
@@ -667,13 +623,11 @@ export default function SoldierDetailPage() {
     { key: "work", label: <span><HistoryOutlined /> Quá trình công tác</span>, children: workProcessTab },
     { key: "training", label: <span><ReadOutlined /> Quá trình đào tạo</span>, children: trainingProcessTab },
     { key: "family", label: <span><TeamOutlined /> Gia đình</span>, children: familyTab },
-    // Tạm thời ẩn Khen thưởng – Kỷ luật và Tài liệu đính kèm
-    // { key: "awards", label: <span><TrophyOutlined /> Khen thưởng – Kỷ luật</span>, children: awardDisciplineTab },
-    // { key: "documents", label: <span><PaperClipOutlined /> Tài liệu đính kèm</span>, children: documentsTab },
+    { key: "awards", label: <span><TrophyOutlined /> Khen thưởng – Kỷ luật</span>, children: awardDisciplineTab },
+    { key: "documents", label: <span><PaperClipOutlined /> Tài liệu đính kèm</span>, children: documentsTab },
     { key: "history", label: <span><HistoryOutlined /> Lịch sử</span>, children: historyTab },
   ]
-console.log("UnitName:", soldier.UnitName);
-console.log("UnitFullPath:", soldier.UnitFullPath);
+
   // ============================================================
   // RENDER
   // ============================================================

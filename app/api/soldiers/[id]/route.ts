@@ -37,7 +37,7 @@ const FIELD_LABELS: Record<string, string> = {
   UnitID: 'Đơn vị',
   RankID: 'Cấp bậc',
   StatusID: 'Trạng thái',
-  ReligionID: 'Tôn giáo',
+  Religion: 'Tôn giáo',
   MaritalStatusID: 'Tình trạng hôn nhân',
   WardID: 'Xã/Phường',
   ProvinceID: 'Tỉnh/Thành phố',
@@ -177,13 +177,43 @@ export async function PUT(
     const updateFields: string[] = [];
     const requestObj = pool.request();
 
+    // const allowedFields = [
+    //   'FullName', 'DateOfBirth', 'Gender', 'CitizenID', 'Ethnicity',
+    //   'Height', 'Weight', 'BloodPressure', 'BloodType', 'HealthClassification',
+    //   'EnlistmentDate', 'Hometown', 'Address', 'EducationLevel',
+    //   'Specialization', 'PoliticalLevel', 'PartyJoinDate', 'YouthUnionJoinDate',
+    //   'Position', 'UnitID', 'RankID', 'StatusID', 'ReligionID',
+    //   'MaritalStatusID', 'WardID', 'ProvinceID', 'LastModifiedBy',
+    // ];
+
     const allowedFields = [
-      'FullName', 'DateOfBirth', 'Gender', 'CitizenID', 'Ethnicity',
-      'Height', 'Weight', 'BloodPressure', 'BloodType', 'HealthClassification',
-      'EnlistmentDate', 'Hometown', 'Address', 'EducationLevel',
-      'Specialization', 'PoliticalLevel', 'PartyJoinDate', 'YouthUnionJoinDate',
-      'Position', 'UnitID', 'RankID', 'StatusID', 'ReligionID',
-      'MaritalStatusID', 'WardID', 'ProvinceID', 'LastModifiedBy',
+      'FullName',
+      'DateOfBirth',
+      'Gender',
+      'CitizenID',
+      'Ethnicity',
+      'Religion',
+      'Height',
+      'Weight',
+      'BloodPressure',
+      'BloodType',
+      'HealthClassification',
+      'EnlistmentDate',
+      'Hometown',
+      'Address',
+      'EducationLevel',
+      'Specialization',
+      'PoliticalLevel',
+      'PartyJoinDate',
+      'YouthUnionJoinDate',
+      'Position',
+      'UnitID',
+      'RankID',
+      'StatusID',
+      'MaritalStatusID',
+      'WardID',
+      'ProvinceID',
+      'LastModifiedBy',
     ];
 
     allowedFields.forEach((field) => {

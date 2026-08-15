@@ -471,10 +471,11 @@ export default function LoginPage() {
           </div>
           <div style={{ textAlign: "left" }}>
             <div style={{ color: "#f4d47c", fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
-              KỶ LUẬT – ĐỒNG TÂM
+              ĐOÀN KẾT TRUNG DŨNG – CƠ ĐỘNG LINH HOẠT
+
             </div>
-            <div style={{ color: "rgba(255,255,255,0.75)", fontSize: 12, marginTop: 2 }}>
-              SẴN SÀNG – CHIẾN THẮNG
+            <div style={{ color: "#f4d47c", fontSize: 13, fontWeight: 700, letterSpacing: 1 }}>
+              TỰ LỰC TỰ CƯỜNG – ĐÁNH THẮNG MỌI KẺ THÙ
             </div>
           </div>
         </div>

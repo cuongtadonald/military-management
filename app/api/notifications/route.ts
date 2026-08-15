@@ -101,7 +101,7 @@ export async function GET(request: NextRequest) {
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { title, content, senderId, targetUnitId, isGlobal, notificationType } = body;
+    const { title, content, senderId, targetUserIds, isGlobal, notificationType } = body;
 
     if (!title || !content || !senderId) {
       return NextResponse.json(
@@ -124,25 +124,21 @@ export async function POST(request: NextRequest) {
           @senderId, GETDATE(), 0, 1
         )
       `, { notificationId, title, content, senderId, notificationType: notificationType || 'INFO' });
-    } else if (targetUnitId) {
-      // Gửi theo đơn vị - tạo bản ghi cho từng user trong đơn vị
-      const usersInUnit = await executeQuery(`
-        SELECT UserID FROM [User] WHERE UnitID = @targetUnitId
-      `, { targetUnitId });
-
-      for (const user of usersInUnit) {
-        const notifId = `NOT${Date.now()}${user.UserID}`;
+    } else if (targetUserIds && Array.isArray(targetUserIds) && targetUserIds.length > 0) {
+      // Gửi đến danh sách user cấp con (từ W01P0004)
+      for (const userId of targetUserIds) {
+        const notifId = `NOT${Date.now()}${userId}`;
         await executeQuery(`
           INSERT INTO Notifications (
             NotificationID, Title, Content, NotificationType,
-            CreatedBy, RecipientUserID, TargetUnitID, CreatedAt, IsRead, IsGlobal
+            CreatedBy, RecipientUserID, CreatedAt, IsRead, IsGlobal
           ) VALUES (
             @notifId, @title, @content, @notificationType,
-            @senderId, @userId, @targetUnitId, GETDATE(), 0, 0
+            @senderId, @userId, GETDATE(), 0, 0
           )
         `, {
           notifId, title, content, senderId,
-          userId: user.UserID, targetUnitId,
+          userId,
           notificationType: notificationType || 'INFO'
         });
       }

@@ -7,7 +7,7 @@
 
 import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
-import { App, Button, Card, Input, Select, Table, Tag, Typography, Space, DatePicker, Tooltip } from "antd"
+import { App, Button, Card, Input, Select, Table, Tag, Typography, Space, DatePicker, Tooltip, Modal, Form, Upload, message as antMessage } from "antd"
 import type { ColumnsType } from "antd/es/table"
 import {
   SearchOutlined,
@@ -21,6 +21,10 @@ import {
   FilePdfOutlined,
   FileExcelOutlined,
   PaperClipOutlined,
+  EditOutlined,
+  DeleteOutlined,
+  UploadOutlined,
+  InboxOutlined,
 } from "@ant-design/icons"
 import { PageLayout } from "@/components/page-layout"
 import { useAuth } from "@/components/auth-provider"
@@ -28,6 +32,8 @@ import dayjs from "dayjs"
 
 const { Title, Text } = Typography
 const { RangePicker } = DatePicker
+const { TextArea } = Input
+const { Dragger } = Upload
 
 // ============================================================
 // CONSTANTS
@@ -135,6 +141,12 @@ export default function DocumentsPage() {
   // Data state
   const [loading, setLoading] = useState(false)
   const [documents, setDocuments] = useState<Document[]>([])
+  
+  // Modal state
+  const [modalVisible, setModalVisible] = useState(false)
+  const [editingDocument, setEditingDocument] = useState<Document | null>(null)
+  const [submitting, setSubmitting] = useState(false)
+  const [form] = Form.useForm()
 
   // Load data
   useEffect(() => {
@@ -147,82 +159,26 @@ export default function DocumentsPage() {
     if (!user?.userId) return
     try {
       setLoading(true)
-      // TODO: Implement API call
-      // const response = await fetch(`/api/documents?userId=${user.userId}`)
-      // const result = await response.json()
-      // if (result.success) {
-      //   setDocuments(result.data || [])
-      // }
-
-      // Mock data for now
-      setDocuments([
-        {
-          DocumentID: "D001",
-          Title: "Quyết định cử đi đào tạo cán bộ năm 2025",
-          ReferenceNumber: "1234/QĐ-BTTM",
-          DocumentType: "chi_thi",
-          IssuingUnit: "Bộ Tổng Tham mưu",
-          IssueDate: "2025-05-20",
-          Status: "active",
-          AttachmentCount: 4,
-          FileType: "docx",
-        },
-        {
-          DocumentID: "D002",
-          Title: "Thông tư 25/2025/TT-BQP",
-          ReferenceNumber: "25/2025/TT-BQP",
-          DocumentType: "thong_tu",
-          IssuingUnit: "Bộ Quốc phòng",
-          IssueDate: "2025-05-15",
-          Status: "active",
-          AttachmentCount: 2,
-          FileType: "pdf",
-        },
-        {
-          DocumentID: "D003",
-          Title: "Kế hoạch huấn luyện năm 2025",
-          ReferenceNumber: "567/KH-ĐTM",
-          DocumentType: "ke_hoach",
-          IssuingUnit: "Cục Đào tạo",
-          IssueDate: "2025-05-10",
-          Status: "active",
-          AttachmentCount: 3,
-          FileType: "xlsx",
-        },
-        {
-          DocumentID: "D004",
-          Title: "Báo cáo tổng hợp quý I/2025",
-          ReferenceNumber: "89/BC-ĐTM",
-          DocumentType: "bao_cao",
-          IssuingUnit: "Phòng Tổng hợp",
-          IssueDate: "2025-04-30",
-          Status: "active",
-          AttachmentCount: 5,
-          FileType: "xlsx",
-        },
-        {
-          DocumentID: "D005",
-          Title: "Hướng dẫn thực hiện công tác chính trị",
-          ReferenceNumber: "12/HD-CT",
-          DocumentType: "huong_dan",
-          IssuingUnit: "Cục Chính trị",
-          IssueDate: "2025-04-25",
-          Status: "active",
-          AttachmentCount: 2,
-          FileType: "docx",
-        },
-        {
-          DocumentID: "D006",
-          Title: "Quy chế thi đua khen thưởng",
-          ReferenceNumber: "34/QC-KT",
-          DocumentType: "quy_che",
-          IssuingUnit: "Bộ Quốc phòng",
-          IssueDate: "2025-04-20",
-          Status: "expired",
-          AttachmentCount: 1,
-          FileType: "pdf",
-        },
-      ])
+      const response = await fetch(`/api/documents?userId=${user.userId}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        // Map dữ liệu từ API sang format của frontend
+        const mappedData = (result.data || []).map((doc: any) => ({
+          DocumentID: doc.DocumentID,
+          Title: doc.DocumentName,
+          ReferenceNumber: doc.DocumentID, // Sử dụng DocumentID làm ReferenceNumber
+          DocumentType: 'tai_lieu', // Default type
+          IssuingUnit: doc.UnitID || '',
+          IssueDate: doc.CreatedDate,
+          Status: doc.StatusName?.toLowerCase().includes('hết') ? 'expired' : 'active',
+          AttachmentCount: 0, // TODO: Đếm số file đính kèm
+          FileType: 'docx', // Default type
+        }))
+        setDocuments(mappedData)
+      } else {
+        message.error(result.message || 'Lỗi khi tải tài liệu')
+      }
     } catch (error) {
       console.error("Lỗi khi tải tài liệu:", error)
       message.error("Lỗi kết nối server")
@@ -236,6 +192,119 @@ export default function DocumentsPage() {
     setDocumentType("")
     setStatus("")
     setDateRange(null)
+  }
+
+  // Mở modal thêm mới
+  const handleAdd = () => {
+    if (user?.permissionLevel !== 1) {
+      message.error('Bạn không có quyền thêm tài liệu')
+      return
+    }
+    setEditingDocument(null)
+    form.resetFields()
+    setModalVisible(true)
+  }
+
+  // Mở modal sửa
+  const handleEdit = (record: Document) => {
+    if (user?.permissionLevel !== 1) {
+      message.error('Bạn không có quyền sửa tài liệu')
+      return
+    }
+    setEditingDocument(record)
+    form.setFieldsValue({
+      DocumentName: record.Title,
+      Content: '', // TODO: Load content từ API
+    })
+    setModalVisible(true)
+  }
+
+  // Xóa tài liệu
+  const handleDelete = (record: Document) => {
+    if (user?.permissionLevel !== 1) {
+      message.error('Bạn không có quyền xóa tài liệu')
+      return
+    }
+    Modal.confirm({
+      title: 'Xác nhận xóa',
+      content: `Bạn có chắc chắn muốn xóa tài liệu "${record.Title}"?`,
+      okText: 'Xóa',
+      okType: 'danger',
+      cancelText: 'Hủy',
+      onOk: async () => {
+        try {
+          const response = await fetch(`/api/documents?documentId=${record.DocumentID}`, {
+            method: 'DELETE',
+          })
+          const result = await response.json()
+          if (result.success) {
+            message.success('Đã xóa tài liệu')
+            loadDocuments()
+          } else {
+            message.error(result.message || 'Lỗi khi xóa tài liệu')
+          }
+        } catch (error) {
+          console.error('Lỗi khi xóa:', error)
+          message.error('Lỗi kết nối server')
+        }
+      },
+    })
+  }
+
+  // Submit form thêm/sửa
+  const handleSubmit = async () => {
+    try {
+      const values = await form.validateFields()
+      setSubmitting(true)
+
+      const payload = {
+        DocumentName: values.DocumentName,
+        Content: values.Content || '',
+        UnitID: user?.unitId || '',
+        StatusID: 'ST001',
+        CreatedBy: user?.userId,
+        ModifiedBy: user?.userId,
+      }
+
+      let response
+      if (editingDocument) {
+        // Sửa
+        response = await fetch('/api/documents', {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            ...payload,
+            DocumentID: editingDocument.DocumentID,
+          }),
+        })
+      } else {
+        // Thêm mới
+        response = await fetch('/api/documents', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload),
+        })
+      }
+
+      const result = await response.json()
+      if (result.success) {
+        message.success(editingDocument ? 'Đã cập nhật tài liệu' : 'Đã thêm tài liệu mới')
+        setModalVisible(false)
+        form.resetFields()
+        loadDocuments()
+      } else {
+        message.error(result.message || 'Lỗi khi lưu tài liệu')
+      }
+    } catch (error: any) {
+      if (error.errorFields) {
+        message.error('Vui lòng điền đầy đủ thông tin')
+      } else {
+        console.error('Lỗi:', error)
+        message.error('Lỗi khi lưu tài liệu')
+      }
+    } finally {
+      setSubmitting(false)
+    }
   }
 
   if (isLoading || !user) {
@@ -328,15 +397,22 @@ export default function DocumentsPage() {
     {
       title: "Thao tác",
       key: "actions",
-      width: 80,
+      width: 120,
       align: "center",
       render: (_, record) => (
         <Space size={4}>
+          {user?.permissionLevel === 1 && (
+            <>
+              <Tooltip title="Sửa">
+                <Button type="text" size="small" icon={<EditOutlined style={{ color: '#1890ff' }} />} onClick={(e) => { e.stopPropagation(); handleEdit(record) }} />
+              </Tooltip>
+              <Tooltip title="Xóa">
+                <Button type="text" size="small" danger icon={<DeleteOutlined />} onClick={(e) => { e.stopPropagation(); handleDelete(record) }} />
+              </Tooltip>
+            </>
+          )}
           <Tooltip title="Tải xuống">
             <Button type="text" size="small" icon={<DownloadOutlined />} onClick={(e) => e.stopPropagation()} />
-          </Tooltip>
-          <Tooltip title="Khác">
-            <Button type="text" size="small" icon={<MoreOutlined />} onClick={(e) => e.stopPropagation()} />
           </Tooltip>
         </Space>
       ),
@@ -393,13 +469,16 @@ export default function DocumentsPage() {
           <Button icon={<ReloadOutlined />} onClick={handleReset}>
             Đặt lại
           </Button>
-          <Button
-            type="primary"
-            icon={<PlusOutlined />}
-            style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
-          >
-            Thêm tài liệu
-          </Button>
+          {user?.permissionLevel === 1 && (
+            <Button
+              type="primary"
+              icon={<PlusOutlined />}
+              onClick={handleAdd}
+              style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
+            >
+              Thêm tài liệu
+            </Button>
+          )}
         </Space>
       </Card>
 
@@ -423,6 +502,59 @@ export default function DocumentsPage() {
           size="middle"
         />
       </Card>
+
+      {/* Modal Thêm/Sửa tài liệu */}
+      <Modal
+        title={editingDocument ? "Sửa tài liệu" : "Thêm tài liệu mới"}
+        open={modalVisible}
+        onCancel={() => {
+          setModalVisible(false)
+          setEditingDocument(null)
+          form.resetFields()
+        }}
+        width={600}
+        footer={[
+          <Button key="cancel" onClick={() => {
+            setModalVisible(false)
+            setEditingDocument(null)
+            form.resetFields()
+          }}>
+            Hủy
+          </Button>,
+          <Button key="submit" type="primary" onClick={handleSubmit} loading={submitting}>
+            {editingDocument ? "Cập nhật" : "Thêm mới"}
+          </Button>,
+        ]}
+      >
+        <Form form={form} layout="vertical">
+          <Form.Item
+            name="DocumentName"
+            label="Tên tài liệu"
+            rules={[{ required: true, message: "Vui lòng nhập tên tài liệu" }]}
+          >
+            <Input placeholder="Nhập tên tài liệu" />
+          </Form.Item>
+          <Form.Item
+            name="Content"
+            label="Nội dung"
+          >
+            <TextArea rows={4} placeholder="Nhập nội dung tài liệu" />
+          </Form.Item>
+          <Form.Item label="File đính kèm">
+            <Dragger
+              accept=".pdf,.doc,.docx,.xls,.xlsx"
+              beforeUpload={() => false}
+              multiple
+            >
+              <p className="ant-upload-drag-icon">
+                <InboxOutlined />
+              </p>
+              <p className="ant-upload-text">Kéo thả file hoặc click để chọn</p>
+              <p className="ant-upload-hint">Hỗ trợ: PDF, Word, Excel</p>
+            </Dragger>
+          </Form.Item>
+        </Form>
+      </Modal>
     </PageLayout>
   )
 }

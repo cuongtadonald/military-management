@@ -476,7 +476,12 @@ export default function AddSoldierPage() {
         </div>
 
         <Row gutter={16}>
-          <Col span={12}>
+          <Col span={8}>
+            <Form.Item name="SoldierID" label="Mã quân nhân" rules={[{ required: true, message: "Nhập mã quân nhân" }]}>
+              <Input placeholder="VD: S001" />
+            </Form.Item>
+          </Col>
+          <Col span={10}>
             <Form.Item name="FullName" label="Họ và tên" rules={[{ required: true, message: "Vui lòng nhập họ tên" }]}>
               <Input placeholder="Nhập họ và tên" />
             </Form.Item>
@@ -486,12 +491,12 @@ export default function AddSoldierPage() {
               <Select placeholder="Chọn cấp bậc" options={rankOptions} />
             </Form.Item>
           </Col>
-          <Col span={6}>
+          <Col span={8}>
             <Form.Item name="Position" label="Chức vụ">
               <Input placeholder="Nhập chức vụ" />
             </Form.Item>
           </Col>
-          <Col span={24}>
+          <Col span={16}>
             <Form.Item name="UnitID" label="Đơn vị" rules={[{ required: true, message: "Chọn đơn vị" }]}>
               <Select showSearch placeholder="Chọn đơn vị" optionFilterProp="label" options={unitOptions} />
             </Form.Item>
@@ -518,12 +523,14 @@ export default function AddSoldierPage() {
         <Row gutter={16}>
           <Col span={4}>
             <Form.Item name="Ethnicity" label="Dân tộc">
-              <Select options={ETHNICITY_OPTIONS} defaultValue="Kinh" />
+              {/* <Select options={ETHNICITY_OPTIONS} defaultValue="Kinh" /> */}
+              <Input placeholder="Nhập dân tộc" />
             </Form.Item>
           </Col>
           <Col span={5}>
-            <Form.Item name="ReligionID" label="Tôn giáo">
-              <Select options={religionOptions} placeholder="Chọn tôn giáo" />
+            <Form.Item name="Religion" label="Tôn giáo">
+              {/* <Select options={religionOptions} placeholder="Chọn tôn giáo" /> */}
+              <Input placeholder="Nhập tôn giáo" />
             </Form.Item>
           </Col>
           <Col span={5}>
@@ -939,6 +946,7 @@ export default function AddSoldierPage() {
         {/* Thông tin cơ bản */}
         <Card title="Thông tin cơ bản" style={{ marginBottom: 16 }}>
           <Row gutter={[16, 16]}>
+            <Col span={12}><Text strong style={{ color: "#666" }}>Mã quân nhân:</Text> <Text>{values.SoldierID || "—"}</Text></Col>
             <Col span={12}><Text strong style={{ color: "#666" }}>Họ và tên:</Text> <Text>{values.FullName || "—"}</Text></Col>
             <Col span={12}><Text strong style={{ color: "#666" }}>Cấp bậc:</Text> <Text>{getRankLabel(values.RankID)}</Text></Col>
             <Col span={12}><Text strong style={{ color: "#666" }}>Chức vụ:</Text> <Text>{values.Position || "—"}</Text></Col>
@@ -948,14 +956,14 @@ export default function AddSoldierPage() {
           </Row>
         </Card>
 
-        {/* Thông tin cá nhân */}
+        {/* Thông tin cá nhân TVC */}
         <Card title="Thông tin cá nhân" style={{ marginBottom: 16 }}>
           <Row gutter={[16, 16]}>
             <Col span={8}><Text strong style={{ color: "#666" }}>Ngày sinh:</Text> <Text>{formatDate(values.DateOfBirth)}</Text></Col>
             <Col span={8}><Text strong style={{ color: "#666" }}>CCCD:</Text> <Text>{values.CitizenID || "—"}</Text></Col>
             <Col span={8}><Text strong style={{ color: "#666" }}>Giới tính:</Text> <Text>{values.Gender === 1 ? "Nam" : "Nữ"}</Text></Col>
             <Col span={8}><Text strong style={{ color: "#666" }}>Dân tộc:</Text> <Text>{values.Ethnicity || "—"}</Text></Col>
-            <Col span={8}><Text strong style={{ color: "#666" }}>Tôn giáo:</Text> <Text>{getReligionLabel(values.ReligionID)}</Text></Col>
+            <Col span={8}><Text strong style={{ color: "#666" }}>Tôn giáo:</Text> <Text>{values.Religion || "—"}</Text></Col>
             <Col span={8}><Text strong style={{ color: "#666" }}>Tình trạng hôn nhân:</Text> <Text>{getMaritalLabel(values.MaritalStatusID)}</Text></Col>
           </Row>
         </Card>
@@ -1076,7 +1084,8 @@ export default function AddSoldierPage() {
       </Card>
 
       <Card style={{ borderRadius: 12, marginBottom: 20 }} styles={{ body: { padding: "24px 32px" } }}>
-        <Form form={form} layout="vertical" initialValues={{ Gender: 1, Ethnicity: "Kinh", StatusID: "ST001", HealthClassification: "Loại 1" }}>
+        {/* <Form form={form} layout="vertical" initialValues={{ Gender: 1, Ethnicity: "Kinh", StatusID: "ST001", HealthClassification: "Loại 1" }}> */}
+        <Form form={form} layout="vertical" initialValues={{ Gender: 1, StatusID: "ST001", HealthClassification: "Loại 1" }}>
           {currentStep === 0 && renderStep1()}
           {currentStep === 1 && renderStep2()}
           {currentStep === 2 && renderStep3()}

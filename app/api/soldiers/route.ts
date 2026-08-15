@@ -130,18 +130,42 @@ export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
     
+    // Validate các field bắt buộc
+    if (!body.FullName || !body.CitizenID || !body.UnitID || !body.RankID) {
+      return NextResponse.json(
+        { success: false, message: 'Thiếu thông tin bắt buộc: Họ tên, CCCD, Đơn vị, Cấp bậc' },
+        { status: 400 }
+      );
+    }
+
     const pool = await getPool();
 
-    // Sinh SoldierID tự động (S + số thứ tự)
-    const maxIdResult = await pool.request()
-      .query(`
-        SELECT MAX(CAST(SUBSTRING(SoldierID, 2, LEN(SoldierID) - 1) AS INT)) as MaxNum
-        FROM Soldier
-        WHERE SoldierID LIKE 'S%'
-      `);
+    // Sử dụng SoldierID từ form nếu có, ngược lại tự sinh
+    let soldierID = body.SoldierID;
+    if (!soldierID) {
+      // Sinh SoldierID tự động (S + số thứ tự)
+      const maxIdResult = await pool.request()
+        .query(`
+          SELECT MAX(CAST(SUBSTRING(SoldierID, 2, LEN(SoldierID) - 1) AS INT)) as MaxNum
+          FROM Soldier
+          WHERE SoldierID LIKE 'S%'
+        `);
 
-    const maxNum = maxIdResult.recordset[0]?.MaxNum || 0;
-    const newSoldierID = `S${String(maxNum + 1).padStart(4, '0')}`;
+      const maxNum = maxIdResult.recordset[0]?.MaxNum || 0;
+      soldierID = `S${String(maxNum + 1).padStart(4, '0')}`;
+    } else {
+      // Kiểm tra SoldierID đã tồn tại chưa
+      const checkResult = await pool.request()
+        .input('soldierId', sql.VarChar, soldierID)
+        .query('SELECT SoldierID FROM Soldier WHERE SoldierID = @soldierId');
+      
+      if (checkResult.recordset.length > 0) {
+        return NextResponse.json(
+          { success: false, message: `Mã quân nhân ${soldierID} đã tồn tại` },
+          { status: 400 }
+        );
+      }
+    }
 
     // Xử lý upload ảnh nếu có (base64)
     let photoPath = null;
@@ -160,7 +184,7 @@ export async function POST(request: NextRequest) {
         const matches = body.PhotoData.match(/^data:image\/([a-zA-Z]+);base64,(.+)$/);
         if (matches) {
           const extension = matches[1] === 'jpeg' ? 'jpg' : matches[1];
-          const fileName = `${newSoldierID}_${Date.now()}.${extension}`;
+          const fileName = `${soldierID}_${Date.now()}.${extension}`;
           const filePath = path.join(uploadDir, fileName);
           
           const buffer = Buffer.from(matches[2], 'base64');
@@ -173,43 +197,43 @@ export async function POST(request: NextRequest) {
       }
     }
 
-    // Thêm chiến sĩ mới
+    // Thêm chiến sĩ mới - sử dụng đúng tên cột
     await pool.request()
-      .input('SoldierID', sql.VarChar, newSoldierID)
+      .input('SoldierID', sql.VarChar, soldierID)
       .input('FullName', sql.NVarChar, body.FullName)
-      .input('DateOfBirth', sql.Date, body.DateOfBirth)
+      .input('DateOfBirth', sql.Date, body.DateOfBirth || null)
       .input('Gender', sql.TinyInt, body.Gender ?? 1)
       .input('CitizenID', sql.VarChar, body.CitizenID)
       .input('UnitID', sql.VarChar, body.UnitID)
-      .input('Position', sql.NVarChar, body.Position)
+      .input('Position', sql.NVarChar, body.Position || '')
       .input('RankID', sql.VarChar, body.RankID)
       .input('StatusID', sql.VarChar, body.StatusID || 'ST001')
       .input('Ethnicity', sql.NVarChar, body.Ethnicity || 'Kinh')
-      .input('ReligionID', sql.VarChar, body.ReligionID || 'REL001')
+      .input('Religion', sql.NVarChar, body.Religion || 'Không')
       .input('MaritalStatusID', sql.VarChar, body.MaritalStatusID || 'MAR001')
-      .input('EducationLevel', sql.NVarChar, body.EducationLevel)
-      .input('Specialization', sql.NVarChar, body.Specialization)
-      .input('PoliticalLevel', sql.NVarChar, body.PoliticalLevel)
-      .input('Height', sql.Int, body.Height)
-      .input('Weight', sql.Int, body.Weight)
-      .input('BloodPressure', sql.NVarChar, body.BloodPressure)
-      .input('BloodType', sql.NVarChar, body.BloodType)
-      .input('HealthClassification', sql.NVarChar, body.HealthClassification)
-      .input('Hometown', sql.NVarChar, body.Hometown)
-      .input('Address', sql.NVarChar, body.Address)
-      .input('EnlistmentDate', sql.Date, body.EnlistmentDate)
-      .input('PartyJoinDate', sql.Date, body.PartyJoinDate)
-      .input('YouthUnionJoinDate', sql.Date, body.YouthUnionJoinDate)
-      .input('WardID', sql.VarChar, body.WardID)
-      .input('ProvinceID', sql.VarChar, body.ProvinceID)
+      .input('EducationLevel', sql.NVarChar, body.EducationLevel || null)
+      .input('Specialization', sql.NVarChar, body.Specialization || null)
+      .input('PoliticalLevel', sql.NVarChar, body.PoliticalLevel || null)
+      .input('Height', sql.Int, body.Height || null)
+      .input('Weight', sql.Int, body.Weight || null)
+      .input('BloodPressure', sql.NVarChar, body.BloodPressure || null)
+      .input('BloodType', sql.NVarChar, body.BloodType || null)
+      .input('HealthClassification', sql.NVarChar, body.HealthClassification || null)
+      .input('Hometown', sql.NVarChar, body.Hometown || null)
+      .input('Address', sql.NVarChar, body.Address || null)
+      .input('EnlistmentDate', sql.Date, body.EnlistmentDate || null)
+      .input('PartyJoinDate', sql.Date, body.PartyJoinDate || null)
+      .input('YouthUnionJoinDate', sql.Date, body.YouthUnionJoinDate || null)
+      .input('WardID', sql.VarChar, body.WardID || null)
+      .input('ProvinceID', sql.VarChar, body.ProvinceID || null)
       .input('PhotoPath', sql.NVarChar, photoPath)
-      .input('SoldierType', sql.VarChar, body.SoldierType)
+      .input('SoldierType', sql.NVarChar, body.SoldierType || null)
       .input('CreatedBy', sql.VarChar, body.CreatedBy)
       .query(`
         INSERT INTO Soldier (
           SoldierID, FullName, DateOfBirth, Gender, CitizenID,
           UnitID, Position, RankID, StatusID,
-          Ethnicity, ReligionID, MaritalStatusID,
+          Ethnicity, Religion, MaritalStatusID,
           EducationLevel, Specialization, PoliticalLevel,
           Height, Weight, BloodPressure, BloodType, HealthClassification,
           Hometown, Address, WardID, ProvinceID,
@@ -218,7 +242,7 @@ export async function POST(request: NextRequest) {
         ) VALUES (
           @SoldierID, @FullName, @DateOfBirth, @Gender, @CitizenID,
           @UnitID, @Position, @RankID, @StatusID,
-          @Ethnicity, @ReligionID, @MaritalStatusID,
+          @Ethnicity, @Religion, @MaritalStatusID,
           @EducationLevel, @Specialization, @PoliticalLevel,
           @Height, @Weight, @BloodPressure, @BloodType, @HealthClassification,
           @Hometown, @Address, @WardID, @ProvinceID,
@@ -229,24 +253,27 @@ export async function POST(request: NextRequest) {
 
     // Lưu FamilyMembers nếu có
     if (body.FamilyMembers && Array.isArray(body.FamilyMembers)) {
-      for (const member of body.FamilyMembers) {
+      for (let i = 0; i < body.FamilyMembers.length; i++) {
+        const member = body.FamilyMembers[i];
         if (member.FullName && member.Relationship) {
+          const familyID = `FM${soldierID}${String(i + 1).padStart(3, '0')}`;
           await pool.request()
-            .input('SoldierID', sql.VarChar, newSoldierID)
+            .input('FamilyID', sql.VarChar, familyID)
+            .input('SoldierID', sql.VarChar, soldierID)
             .input('FullName', sql.NVarChar, member.FullName)
             .input('Relationship', sql.NVarChar, member.Relationship)
             .input('DateOfBirth', sql.Date, member.DateOfBirth || null)
-            .input('Occupation', sql.NVarChar, member.Occupation)
-            .input('Workplace', sql.NVarChar, member.Workplace)
-            .input('PhoneNumber', sql.VarChar, member.PhoneNumber)
-            .input('Address', sql.NVarChar, member.Address)
+            .input('Occupation', sql.NVarChar, member.Occupation || null)
+            .input('Workplace', sql.NVarChar, member.Workplace || null)
+            .input('PhoneNumber', sql.VarChar, member.PhoneNumber || null)
+            .input('Address', sql.NVarChar, member.Address || null)
             .input('IsDependent', sql.Bit, member.IsDependent ? 1 : 0)
             .query(`
               INSERT INTO SoldierFamily (
-                SoldierID, FullName, Relationship, DateOfBirth,
+                FamilyID, SoldierID, FullName, Relationship, DateOfBirth,
                 Occupation, Workplace, PhoneNumber, Address, IsDependent
               ) VALUES (
-                @SoldierID, @FullName, @Relationship, @DateOfBirth,
+                @FamilyID, @SoldierID, @FullName, @Relationship, @DateOfBirth,
                 @Occupation, @Workplace, @PhoneNumber, @Address, @IsDependent
               )
             `);
@@ -256,23 +283,26 @@ export async function POST(request: NextRequest) {
 
     // Lưu TrainingProcesses nếu có
     if (body.TrainingProcesses && Array.isArray(body.TrainingProcesses)) {
-      for (const training of body.TrainingProcesses) {
+      for (let i = 0; i < body.TrainingProcesses.length; i++) {
+        const training = body.TrainingProcesses[i];
         if (training.SchoolName) {
+          const trainingID = `TP${soldierID}${String(i + 1).padStart(3, '0')}`;
           await pool.request()
-            .input('SoldierID', sql.VarChar, newSoldierID)
+            .input('TrainingID', sql.VarChar, trainingID)
+            .input('SoldierID', sql.VarChar, soldierID)
             .input('SchoolName', sql.NVarChar, training.SchoolName)
-            .input('MajorName', sql.NVarChar, training.MajorName)
-            .input('FromDate', sql.Date, training.FromDate || null)
-            .input('ToDate', sql.Date, training.ToDate || null)
-            .input('TrainingType', sql.NVarChar, training.TrainingType)
-            .input('Certificate', sql.NVarChar, training.Certificate)
-            .input('Description', sql.NVarChar, training.Description)
+            .input('MajorName', sql.NVarChar, training.MajorName || null)
+            .input('FromDate', sql.NVarChar, training.FromDate || null)
+            .input('ToDate', sql.NVarChar, training.ToDate || null)
+            .input('TrainingType', sql.NVarChar, training.TrainingType || null)
+            .input('Certificate', sql.NVarChar, training.Certificate || null)
+            .input('Description', sql.NVarChar, training.Description || null)
             .query(`
-              INSERT INTO TrainingProcess (
-                SoldierID, SchoolName, MajorName, FromDate, ToDate,
+              INSERT INTO SoldierTrainingProcess (
+                TrainingID, SoldierID, SchoolName, MajorName, FromDate, ToDate,
                 TrainingType, Certificate, Description
               ) VALUES (
-                @SoldierID, @SchoolName, @MajorName, @FromDate, @ToDate,
+                @TrainingID, @SoldierID, @SchoolName, @MajorName, @FromDate, @ToDate,
                 @TrainingType, @Certificate, @Description
               )
             `);
@@ -282,21 +312,24 @@ export async function POST(request: NextRequest) {
 
     // Lưu WorkProcesses nếu có
     if (body.WorkProcesses && Array.isArray(body.WorkProcesses)) {
-      for (const work of body.WorkProcesses) {
+      for (let i = 0; i < body.WorkProcesses.length; i++) {
+        const work = body.WorkProcesses[i];
         if (work.WorkDescription || work.FromDate || work.ToDate) {
+          const workProcessID = `WP${soldierID}${String(i + 1).padStart(3, '0')}`;
           await pool.request()
-            .input('SoldierID', sql.VarChar, newSoldierID)
-            .input('FromDate', sql.Date, work.FromDate || null)
-            .input('ToDate', sql.Date, work.ToDate || null)
-            .input('WorkDescription', sql.NVarChar, work.WorkDescription)
-            .input('RankID', sql.VarChar, work.RankID)
-            .input('PartyPosition', sql.NVarChar, work.PartyPosition)
-            .input('Description', sql.NVarChar, work.Description)
+            .input('WorkProcessID', sql.VarChar, workProcessID)
+            .input('SoldierID', sql.VarChar, soldierID)
+            .input('FromDate', sql.NVarChar, work.FromDate || null)
+            .input('ToDate', sql.NVarChar, work.ToDate || null)
+            .input('WorkDescription', sql.NVarChar, work.WorkDescription || null)
+            .input('RankID', sql.VarChar, work.RankID || null)
+            .input('PartyPosition', sql.NVarChar, work.PartyPosition || null)
+            .input('Description', sql.NVarChar, work.Description || null)
             .query(`
-              INSERT INTO WorkProcess (
-                SoldierID, FromDate, ToDate, WorkDescription, RankID, PartyPosition, Description
+              INSERT INTO SoldierWorkProcess (
+                WorkProcessID, SoldierID, FromDate, ToDate, WorkDescription, RankID, PartyPosition, Description
               ) VALUES (
-                @SoldierID, @FromDate, @ToDate, @WorkDescription, @RankID, @PartyPosition, @Description
+                @WorkProcessID, @SoldierID, @FromDate, @ToDate, @WorkDescription, @RankID, @PartyPosition, @Description
               )
             `);
         }
@@ -308,26 +341,26 @@ export async function POST(request: NextRequest) {
       changedBy: body.CreatedBy,
       changeType: 'INSERT',
       changeReason: 'Thêm chiến sĩ',
-      description: `Thêm mới chiến sĩ ${body.FullName || newSoldierID}`,
+      description: `Thêm mới chiến sĩ ${body.FullName || soldierID}`,
       totalSoldier: 1,
       details: [
-        { soldierId: newSoldierID, fieldName: 'FullName', fieldDisplayName: 'Họ và tên', oldValue: null, newValue: body.FullName },
-        { soldierId: newSoldierID, fieldName: 'CitizenID', fieldDisplayName: 'CCCD', oldValue: null, newValue: body.CitizenID },
-        { soldierId: newSoldierID, fieldName: 'UnitID', fieldDisplayName: 'Đơn vị', oldValue: null, newValue: body.UnitID },
-        { soldierId: newSoldierID, fieldName: 'RankID', fieldDisplayName: 'Cấp bậc', oldValue: null, newValue: body.RankID },
-        { soldierId: newSoldierID, fieldName: 'StatusID', fieldDisplayName: 'Trạng thái', oldValue: null, newValue: body.StatusID || 'ST001' },
+        { soldierId: soldierID, fieldName: 'FullName', fieldDisplayName: 'Họ và tên', oldValue: null, newValue: body.FullName },
+        { soldierId: soldierID, fieldName: 'CitizenID', fieldDisplayName: 'CCCD', oldValue: null, newValue: body.CitizenID },
+        { soldierId: soldierID, fieldName: 'UnitID', fieldDisplayName: 'Đơn vị', oldValue: null, newValue: body.UnitID },
+        { soldierId: soldierID, fieldName: 'RankID', fieldDisplayName: 'Cấp bậc', oldValue: null, newValue: body.RankID },
+        { soldierId: soldierID, fieldName: 'StatusID', fieldDisplayName: 'Trạng thái', oldValue: null, newValue: body.StatusID || 'ST001' },
       ],
     });
 
     return NextResponse.json({
       success: true,
       message: 'Đã thêm chiến sĩ mới',
-      data: { SoldierID: newSoldierID },
+      data: { SoldierID: soldierID },
     });
-  } catch (error) {
+  } catch (error: any) {
     console.error('Lỗi khi thêm chiến sĩ:', error);
     return NextResponse.json(
-      { success: false, message: 'Lỗi khi thêm chiến sĩ' },
+      { success: false, message: `Lỗi khi thêm chiến sĩ: ${error.message || 'Unknown error'}` },
       { status: 500 }
     );
   }

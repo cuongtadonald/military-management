@@ -8,11 +8,13 @@ import { useAuth } from '@/components/auth-provider';
 const { TextArea } = Input;
 const { Title, Text } = Typography;
 
-interface UnitOption {
+interface SubordinateUser {
+  UserID: string;
+  Username: string;
+  FullName: string;
+  RoleName: string;
   UnitID: string;
-  UnitName: string;
-  FullPathName: string;
-  UnitLevel: number;
+  PermissionLevel: number;
 }
 
 export default function SendNotificationTab() {
@@ -20,26 +22,24 @@ export default function SendNotificationTab() {
   const { user } = useAuth();
   const [form] = Form.useForm();
   const [loading, setLoading] = useState(false);
-  const [scope, setScope] = useState<'global' | 'unit'>('global');
-  const [unitOptions, setUnitOptions] = useState<UnitOption[]>([]);
+  const [scope, setScope] = useState<'global' | 'subordinate'>('global');
+  const [subordinateUsers, setSubordinateUsers] = useState<SubordinateUser[]>([]);
 
   useEffect(() => {
     if (user?.userId) {
-      loadSubordinateUnits();
+      loadSubordinateUsers();
     }
   }, [user?.userId]);
 
-  const loadSubordinateUnits = async () => {
+  const loadSubordinateUsers = async () => {
     try {
-      const res = await fetch(`/api/units?userId=${user?.userId}`);
+      const res = await fetch(`/api/subordinate-users?userId=${user?.userId}`);
       const data = await res.json();
       if (data.success) {
-        // Chỉ hiển thị các đơn vị cấp dưới (level cao hơn)
-        const subordinates = data.data.filter((u: UnitOption) => u.UnitLevel > (user.unitLevel || 0));
-        setUnitOptions(subordinates);
+        setSubordinateUsers(data.data || []);
       }
     } catch (error) {
-      console.error('Error loading units:', error);
+      console.error('Error loading subordinate users:', error);
     }
   };
 
@@ -53,7 +53,7 @@ export default function SendNotificationTab() {
         content: values.content,
         senderId: user.userId,
         isGlobal: scope === 'global',
-        targetUnitId: scope === 'unit' ? values.targetUnitId : null,
+        targetUserIds: scope === 'subordinate' ? values.targetUserIds : [],
         notificationType: values.notificationType || 'INFO',
       };
 
@@ -92,13 +92,13 @@ export default function SendNotificationTab() {
         </Text>
       </div>
 
-      <Alert
+      {/* <Alert
         message="Lưu ý"
-        description="Chỉ có thể gửi thông báo đến các đơn vị cấp dưới trực tiếp. Thông báo sẽ hiển thị ở nút chuông trên header của người nhận."
+        description="Chỉ có thể gửi thông báo đến các cấp dưới trực tiếp (theo SP W01P0004). Thông báo sẽ hiển thị ở nút chuông trên header của người nhận."
         type="info"
         showIcon
         style={{ marginBottom: 24 }}
-      />
+      /> */}
 
       <Form
         form={form}
@@ -152,32 +152,33 @@ export default function SendNotificationTab() {
                 Toàn hệ thống
               </Space>
             </Radio.Button>
-            <Radio.Button value="unit">
+            <Radio.Button value="subordinate">
               <Space>
                 <TeamOutlined />
-                Theo đơn vị
+                Cấp dưới trực tiếp
               </Space>
             </Radio.Button>
           </Radio.Group>
         </Form.Item>
 
-        {scope === 'unit' && (
+        {scope === 'subordinate' && (
           <Form.Item
-            name="targetUnitId"
-            label="Chọn đơn vị nhận"
-            rules={[{ required: true, message: 'Vui lòng chọn đơn vị' }]}
+            name="targetUserIds"
+            label="Chọn người nhận"
+            rules={[{ required: true, message: 'Vui lòng chọn ít nhất một người' }]}
           >
             <Select
-              placeholder="Chọn đơn vị"
+              mode="multiple"
+              placeholder="Chọn người nhận"
               showSearch
               optionFilterProp="children"
               filterOption={(input, option) =>
                 (option?.children as unknown as string)?.toLowerCase().includes(input.toLowerCase())
               }
             >
-              {unitOptions.map((unit) => (
-                <Select.Option key={unit.UnitID} value={unit.UnitID}>
-                  {unit.FullPathName || unit.UnitName} (Level {unit.UnitLevel})
+              {subordinateUsers.map((u) => (
+                <Select.Option key={u.UserID} value={u.UserID}>
+                  {u.FullName} - {u.RoleName}
                 </Select.Option>
               ))}
             </Select>

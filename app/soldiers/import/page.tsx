@@ -19,6 +19,7 @@ import {
   Typography,
   Upload,
   Table,
+  Tabs,
   Tag,
   Progress,
   Space,
@@ -52,17 +53,78 @@ const { Dragger } = Upload
 
 interface SoldierImportRow {
   rowNumber: number
+  SoldierID: string // Mã quân nhân
   FullName: string
+  UnitID: string // Mã đơn vị
+  UnitName: string // Tên đơn vị (không lưu DB)
+  Position: string
+  RankID: string // Mã cấp bậc
+  RankName: string // Tên cấp bậc (không lưu DB)
   DateOfBirth: string
   Gender: string
   CitizenID: string
-  RankName: string
-  Position: string
-  UnitName: string
+  Hometown: string // Quê quán
+  Address: string // Địa chỉ hiện tại (Col 15)
+  ProvinceID?: string // Mã tỉnh (Col 11)
+  ProvinceName?: string // Tên tỉnh (không lưu DB)
+  WardID?: string // Mã xã/phường (Col 13)
+  WardName?: string // Tên xã/phường (không lưu DB)
+  Ethnicity?: string // Dân tộc (Col 16)
+  SoldierType?: string // Đối tượng (Col 17)
+  Religion?: string // Tôn giáo (Col 18)
+  MaritalStatusID?: string // Mã tình trạng hôn nhân (Col 19)
+  MaritalStatus?: string // Tên tình trạng hôn nhân (không lưu DB)
+  EducationLevel?: string
+  Specialization?: string
+  PoliticalLevel?: string
+  BloodType?: string
+  HealthClassification?: string
+  Height?: number
+  Weight?: number
+  BloodPressure?: string
   EnlistmentDate: string
+  PartyJoinDate?: string
+  YouthUnionJoinDate?: string
+  PhotoPath?: string // Link ảnh (Col 32)
   Status: "valid" | "warning" | "error"
   errors: string[]
   warnings: string[]
+  // Dữ liệu từ các sheet khác
+  FamilyMembers?: FamilyMemberRow[]
+  WorkProcesses?: WorkProcessRow[]
+  TrainingProcesses?: TrainingProcessRow[]
+}
+
+interface FamilyMemberRow {
+  FullName: string
+  Relationship: string
+  DateOfBirth?: string
+  Occupation?: string
+  Workplace?: string
+  PhoneNumber?: string
+  Address?: string
+  IsDependent?: boolean
+}
+
+interface WorkProcessRow {
+  FromDate?: string
+  ToDate?: string
+  UnitName?: string
+  Position?: string
+  RankID?: string
+  RankName?: string
+  PartyPosition?: string
+  Description?: string
+}
+
+interface TrainingProcessRow {
+  SchoolName: string
+  MajorName?: string
+  FromDate?: string
+  ToDate?: string
+  TrainingType?: string
+  Certificate?: string
+  Description?: string
 }
 
 interface ValidationError {
@@ -114,173 +176,110 @@ export default function ImportSoldiersPage() {
   // ============================================================
 
   const handleDownloadTemplate = () => {
-    const wb = XLSX.utils.book_new()
-
-    // Sheet 1: Thông tin cơ bản
-    const basicInfoHeaders = [
-      "Họ và tên",
-      "Ngày sinh (DD/MM/YYYY)",
-      "Giới tính (Nam/Nữ)",
-      "Số CCCD",
-      "Cấp bậc",
-      "Chức vụ",
-      "Đơn vị",
-      "Ngày nhập ngũ (DD/MM/YYYY)",
-      "Dân tộc",
-      "Tôn giáo",
-      "Quê quán",
-      "Địa chỉ",
-      "Tỉnh/Thành phố",
-      "Xã/Phường",
-      "Trình độ văn hóa",
-      "Chuyên môn",
-      "Trình độ chính trị",
-      "Chiều cao (cm)",
-      "Cân nặng (kg)",
-      "Nhóm máu",
-      "Huyết áp",
-      "Phân loại sức khỏe",
-      "Ngày vào Đoàn (DD/MM/YYYY)",
-      "Ngày vào Đảng (DD/MM/YYYY)",
-    ]
-
-    const basicInfoSample = [
-      [
-        "Nguyễn Văn A",
-        "15/05/1990",
-        "Nam",
-        "079090000001",
-        "Trung úy",
-        "Trung đội trưởng",
-        "Đại đội 1",
-        "20/03/2010",
-        "Kinh",
-        "Không",
-        "Hà Nội",
-        "123 Đường ABC, Quận XYZ",
-        "Hà Nội",
-        "Phường XYZ",
-        "12/12",
-        "Chỉ huy quân sự",
-        "Sơ cấp",
-        "170",
-        "65",
-        "O+",
-        "120/80",
-        "Loại 1",
-        "26/03/2005",
-        "15/05/2012",
-      ],
-    ]
-
-    const ws1 = XLSX.utils.aoa_to_sheet([basicInfoHeaders, ...basicInfoSample])
-    XLSX.utils.book_append_sheet(wb, ws1, "Thông tin cơ bản")
-
-    // Sheet 2: Thân nhân
-    const familyHeaders = [
-      "Số CCCD quân nhân",
-      "Họ và tên thân nhân",
-      "Quan hệ",
-      "Ngày sinh (DD/MM/YYYY)",
-      "Nghề nghiệp",
-      "Nơi công tác",
-      "Số điện thoại",
-      "Địa chỉ",
-      "Có phụ thuộc (Có/Không)",
-    ]
-
-    const familySample = [
-      [
-        "079090000001",
-        "Nguyễn Thị B",
-        "Mẹ",
-        "20/08/1960",
-        "Giáo viên",
-        "Trường THPT XYZ",
-        "0912345678",
-        "123 Đường ABC, Hà Nội",
-        "Có",
-      ],
-    ]
-
-    const ws2 = XLSX.utils.aoa_to_sheet([familyHeaders, ...familySample])
-    XLSX.utils.book_append_sheet(wb, ws2, "Thân nhân")
-
-    // Sheet 3: Quá trình công tác
-    const workHeaders = [
-      "Số CCCD quân nhân",
-      "Từ ngày (DD/MM/YYYY)",
-      "Đến ngày (DD/MM/YYYY)",
-      "Đơn vị công tác",
-      "Chức vụ",
-      "Cấp bậc",
-      "Chức vụ Đảng/Đoàn thể",
-      "Binh chủng",
-      "Chiến trường",
-      "Ghi chú",
-    ]
-
-    const workSample = [
-      [
-        "079090000001",
-        "20/03/2010",
-        "15/08/2012",
-        "Đại đội 1",
-        "Chiến sĩ",
-        "Binh nhì",
-        "Đoàn viên",
-        "Bộ binh",
-        "",
-        "",
-      ],
-      [
-        "079090000001",
-        "16/08/2012",
-        "nay",
-        "Đại đội 1",
-        "Trung đội trưởng",
-        "Trung úy",
-        "Bí thư Chi đoàn",
-        "Bộ binh",
-        "",
-        "",
-      ],
-    ]
-
-    const ws3 = XLSX.utils.aoa_to_sheet([workHeaders, ...workSample])
-    XLSX.utils.book_append_sheet(wb, ws3, "Quá trình công tác")
-
-    // Sheet 4: Quá trình đào tạo
-    const trainingHeaders = [
-      "Số CCCD quân nhân",
-      "Tên trường đào tạo",
-      "Ngành học/Lớp học",
-      "Từ ngày (DD/MM/YYYY)",
-      "Đến ngày (DD/MM/YYYY)",
-      "Hình thức đào tạo",
-      "Bằng cấp/Chứng chỉ",
-      "Ghi chú",
-    ]
-
-    const trainingSample = [
-      [
-        "079090000001",
-        "Trường Sĩ quan Lục quân 1",
-        "Chỉ huy tham mưu",
-        "01/09/2010",
-        "30/06/2014",
-        "Chính quy",
-        "Cử nhân",
-        "",
-      ],
-    ]
-
-    const ws4 = XLSX.utils.aoa_to_sheet([trainingHeaders, ...trainingSample])
-    XLSX.utils.book_append_sheet(wb, ws4, "Quá trình đào tạo")
-
-    // Download
-    XLSX.writeFile(wb, "File_mau_import_quan_nhan.xlsx")
+    // Download file mẫu có sẵn từ server
+    const link = document.createElement('a')
+    link.href = '/templates/File_mau_import_quan_nhan.xlsx'
+    link.download = 'File_mau_import_quan_nhan.xlsx'
+    document.body.appendChild(link)
+    link.click()
+    document.body.removeChild(link)
     message.success("Đã tải file mẫu")
+  }
+
+  // ============================================================
+  // HELPER FUNCTIONS
+  // ============================================================
+
+  // Convert ngày tháng từ số Excel hoặc text sang DD/MM/YYYY
+  const convertExcelDate = (value: any): string => {
+    if (!value) return ""
+    
+    // Nếu là số (Excel date serial)
+    if (typeof value === "number") {
+      const date = new Date((value - 25569) * 86400 * 1000)
+      const day = String(date.getUTCDate()).padStart(2, "0")
+      const month = String(date.getUTCMonth() + 1).padStart(2, "0")
+      const year = date.getUTCFullYear()
+      return `${day}/${month}/${year}`
+    }
+    
+    // Nếu là string
+    const str = String(value).trim()
+    
+    // Nếu đã là DD/MM/YYYY
+    if (/^\d{2}\/\d{2}\/\d{4}$/.test(str)) {
+      return str
+    }
+    
+    // Nếu là YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(str)) {
+      const [year, month, day] = str.split("-")
+      return `${day}/${month}/${year}`
+    }
+    
+    // Nếu chỉ có năm (cho ngày sinh thân nhân)
+    if (/^\d{4}$/.test(str)) {
+      return str // Giữ nguyên năm
+    }
+    
+    return str
+  }
+
+  // Map giá trị dropdown sang mã
+  const mapDropdownValue = (value: string, type: string): string => {
+    const val = String(value || "").trim().toLowerCase()
+    
+    if (!val) return ""
+    
+    switch (type) {
+      case "gender":
+        if (val === "nam") return "1"
+        if (val === "nữ") return "0"
+        return val
+      
+      case "ethnicity":
+        // Giữ nguyên text (Kinh, Tày, Thái, etc.)
+        // Database lưu text, không lưu mã
+        return value.charAt(0).toUpperCase() + value.slice(1) // Viết hoa chữ cái đầu
+      
+      case "religion":
+        // Giữ nguyên text (Không, Phật giáo, Thiên chúa giáo, etc.)
+        // Database lưu text, không lưu mã
+        return value.charAt(0).toUpperCase() + value.slice(1) // Viết hoa chữ cái đầu
+      
+      case "bloodType":
+        // Map nhóm máu
+        const bloodMap: Record<string, string> = {
+          "a": "A",
+          "b": "B",
+          "ab": "AB",
+          "o": "O",
+          "a+": "A+",
+          "a-": "A-",
+          "b+": "B+",
+          "b-": "B-",
+          "ab+": "AB+",
+          "ab-": "AB-",
+          "o+": "O+",
+          "o-": "O-",
+        }
+        return bloodMap[val] || "O"
+      
+      case "healthClassification":
+        // Map loại sức khỏe
+        const healthMap: Record<string, string> = {
+          "loại 1": "Loại 1",
+          "loại 2": "Loại 2",
+          "loại 3": "Loại 3",
+          "loại 4": "Loại 4",
+          "loại 5": "Loại 5",
+          "loại 6": "Loại 6",
+        }
+        return healthMap[val] || "Loại 1"
+      
+      default:
+        return value
+    }
   }
 
   // ============================================================
@@ -294,106 +293,192 @@ export default function ImportSoldiersPage() {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: "array" })
 
-        // Read first sheet (Thông tin cơ bản)
-        const sheetName = workbook.SheetNames[0]
-        const sheet = workbook.Sheets[sheetName]
-        const jsonData = XLSX.utils.sheet_to_json(sheet, { header: 1 }) as any[][]
-
-        if (jsonData.length < 2) {
-          message.error("File Excel không có dữ liệu")
+        // 1. Đọc sheet "Thông Tin Chiến Sĩ"
+        const basicSheet = workbook.Sheets["Thông Tin Chiến Sĩ"] || workbook.Sheets[workbook.SheetNames[0]]
+        if (!basicSheet) {
+          message.error("Không tìm thấy sheet 'Thông Tin Chiến Sĩ'")
           return
         }
 
-        // Parse data (skip header row)
-        const headers = jsonData[0]
-        const rows = jsonData.slice(1).filter((row) => row.length > 0 && row[0])
+        const basicData = XLSX.utils.sheet_to_json(basicSheet, { header: 1 }) as any[][]
+        if (basicData.length < 3) {
+          message.error("Sheet 'Thông Tin Chiến Sĩ' không có dữ liệu")
+          return
+        }
 
+        // Skip header rows (row 0 and row 1 are headers)
+        const basicRows = basicData.slice(2).filter((row) => row.length > 0 && row[0])
+        
+        // 2. Đọc sheet "Thân nhân" - map theo SoldierID
+        const familySheet = workbook.Sheets["Thân nhân"]
+        const familyBySoldierID = new Map<string, FamilyMemberRow[]>()
+        if (familySheet) {
+          const familyData = XLSX.utils.sheet_to_json(familySheet, { header: 1 }) as any[][]
+          const familyRows = familyData.slice(1).filter((row) => row.length > 0 && row[0])
+          familyRows.forEach((row) => {
+            const soldierID = String(row[0] || "").trim()
+            if (soldierID) {
+              const member: FamilyMemberRow = {
+                Relationship: String(row[1] || "").trim(),
+                FullName: String(row[2] || "").trim(),
+                DateOfBirth: convertExcelDate(row[3]), // Convert ngày sinh (có thể là năm hoặc số Excel)
+                Occupation: String(row[4] || "").trim(),
+                Workplace: String(row[5] || "").trim(),
+                PhoneNumber: String(row[6] || "").trim(),
+                Address: String(row[7] || "").trim(),
+                IsDependent: String(row[8] || "").trim() === "1" || String(row[8] || "").trim() === "có",
+              }
+              if (!familyBySoldierID.has(soldierID)) {
+                familyBySoldierID.set(soldierID, [])
+              }
+              familyBySoldierID.get(soldierID)!.push(member)
+            }
+          })
+        }
+
+        // 3. Đọc sheet "Quá trình công tác" - map theo SoldierID
+        const workSheet = workbook.Sheets["Quá trình công tác"]
+        const workBySoldierID = new Map<string, WorkProcessRow[]>()
+        if (workSheet) {
+          const workData = XLSX.utils.sheet_to_json(workSheet, { header: 1 }) as any[][]
+          const workRows = workData.slice(2).filter((row) => row.length > 0 && row[0])
+          workRows.forEach((row) => {
+            const soldierID = String(row[0] || "").trim()
+            if (soldierID) {
+              const work: WorkProcessRow = {
+                FromDate: convertExcelDate(row[1]), // Convert từ số Excel
+                ToDate: convertExcelDate(row[2]), // Convert từ số Excel
+                Description: String(row[3] || "").trim(),
+                RankID: String(row[4] || "").trim(),
+                RankName: String(row[5] || "").trim(),
+                PartyPosition: String(row[6] || "").trim(),
+              }
+              if (!workBySoldierID.has(soldierID)) {
+                workBySoldierID.set(soldierID, [])
+              }
+              workBySoldierID.get(soldierID)!.push(work)
+            }
+          })
+        }
+
+        // 4. Đọc sheet "Quá trình đào tạo" - map theo SoldierID
+        const trainingSheet = workbook.Sheets["Quá trình đào tạo"]
+        const trainingBySoldierID = new Map<string, TrainingProcessRow[]>()
+        if (trainingSheet) {
+          const trainingData = XLSX.utils.sheet_to_json(trainingSheet, { header: 1 }) as any[][]
+          const trainingRows = trainingData.slice(2).filter((row) => row.length > 0 && row[0])
+          trainingRows.forEach((row) => {
+            const soldierID = String(row[0] || "").trim()
+            if (soldierID) {
+              const training: TrainingProcessRow = {
+                SchoolName: String(row[1] || "").trim(),
+                MajorName: String(row[2] || "").trim(),
+                FromDate: convertExcelDate(row[3]), // Convert từ số Excel
+                ToDate: convertExcelDate(row[4]), // Convert từ số Excel
+                TrainingType: String(row[5] || "").trim(),
+                Certificate: String(row[6] || "").trim(),
+              }
+              if (!trainingBySoldierID.has(soldierID)) {
+                trainingBySoldierID.set(soldierID, [])
+              }
+              trainingBySoldierID.get(soldierID)!.push(training)
+            }
+          })
+        }
+
+        // 5. Parse và validate dữ liệu
         const parsedData: SoldierImportRow[] = []
         const validationErrors: ValidationError[] = []
         let validCount = 0
         let warningCount = 0
         let errorCount = 0
 
-        rows.forEach((row, index) => {
-          const rowNumber = index + 2 // +2 because of header row and 0-index
+        basicRows.forEach((row, index) => {
+          const rowNumber = index + 3 // +3 vì có 2 dòng header
+          const soldierID = String(row[0] || "").trim()
+          
+          // Map các giá trị dropdown
+          const genderValue = mapDropdownValue(String(row[8] || "").trim(), "gender")
+          const ethnicityValue = mapDropdownValue(String(row[16] || "").trim(), "ethnicity")
+          const religionValue = mapDropdownValue(String(row[18] || "").trim(), "religion")
+          const bloodTypeValue = mapDropdownValue(String(row[24] || "").trim(), "bloodType")
+          const healthValue = mapDropdownValue(String(row[25] || "").trim(), "healthClassification")
+          
           const soldier: SoldierImportRow = {
             rowNumber,
-            FullName: String(row[0] || "").trim(),
-            DateOfBirth: String(row[1] || "").trim(),
-            Gender: String(row[2] || "").trim(),
-            CitizenID: String(row[3] || "").trim(),
-            RankName: String(row[4] || "").trim(),
-            Position: String(row[5] || "").trim(),
-            UnitName: String(row[6] || "").trim(),
-            EnlistmentDate: String(row[7] || "").trim(),
+            SoldierID: soldierID,
+            FullName: String(row[1] || "").trim(),
+            UnitID: String(row[2] || "").trim(),
+            UnitName: String(row[3] || "").trim(),
+            Position: String(row[4] || "").trim(),
+            RankID: String(row[5] || "").trim(),
+            RankName: String(row[6] || "").trim(),
+            DateOfBirth: convertExcelDate(row[7]), // Convert từ số Excel
+            Gender: genderValue, // Map Nam/Nữ -> 1/0
+            CitizenID: String(row[9] || "").trim(),
+            Hometown: String(row[10] || "").trim(),
+            ProvinceID: row[11] ? String(row[11]) : undefined, // Col 11: Mã tỉnh
+            ProvinceName: String(row[12] || "").trim() || undefined, // Col 12: Tên tỉnh (không lưu)
+            WardID: row[13] ? String(row[13]) : undefined, // Col 13: Mã xã/phường
+            WardName: String(row[14] || "").trim() || undefined, // Col 14: Tên xã/phường (không lưu)
+            Address: String(row[15] || "").trim(), // Col 15: Địa chỉ hiện tại
+            Ethnicity: ethnicityValue, // Col 16: Dân tộc
+            SoldierType: String(row[17] || "").trim() || undefined, // Col 17: Đối tượng
+            Religion: religionValue, // Col 18: Tôn giáo
+            MaritalStatusID: String(row[19] || "").trim() || undefined, // Col 19: Mã TTHN
+            MaritalStatus: String(row[20] || "").trim() || undefined, // Col 20: Tên TTHN (không lưu)
+            EducationLevel: String(row[21] || "").trim() || undefined,
+            Specialization: String(row[22] || "").trim() || undefined,
+            PoliticalLevel: String(row[23] || "").trim() || undefined,
+            BloodType: bloodTypeValue, // Col 24: Nhóm máu
+            HealthClassification: healthValue, // Col 25: Loại sức khỏe
+            Height: row[26] ? Number(row[26]) : undefined,
+            Weight: row[27] ? Number(row[27]) : undefined,
+            BloodPressure: String(row[28] || "").trim() || undefined,
+            EnlistmentDate: convertExcelDate(row[29]), // Convert từ số Excel
+            PartyJoinDate: convertExcelDate(row[30]) || undefined, // Convert từ số Excel
+            YouthUnionJoinDate: convertExcelDate(row[31]) || undefined, // Convert từ số Excel
+            PhotoPath: String(row[32] || "").trim() || undefined, // Col 32: Link ảnh
             Status: "valid",
             errors: [],
             warnings: [],
+            // Gộp dữ liệu từ các sheet khác theo SoldierID
+            FamilyMembers: familyBySoldierID.get(soldierID) || [],
+            WorkProcesses: workBySoldierID.get(soldierID) || [],
+            TrainingProcesses: trainingBySoldierID.get(soldierID) || [],
           }
 
-          // Validation - Kiểm tra các trường bắt buộc
-          // Các trường bắt buộc: Họ và tên, Ngày sinh, Giới tính, Số CCCD, Cấp bậc, Chức vụ, Đơn vị, Ngày nhập ngũ
-          
+          // Validation các field bắt buộc
+          if (!soldier.SoldierID) {
+            soldier.errors.push("Thiếu mã quân nhân")
+            validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
+          }
           if (!soldier.FullName) {
             soldier.errors.push("Thiếu họ tên")
             validationErrors.push({ rowNumber, message: "Thiếu họ tên", field: "FullName" })
           }
-
-          if (!soldier.DateOfBirth) {
-            soldier.errors.push("Thiếu ngày sinh")
-            validationErrors.push({ rowNumber, message: "Thiếu ngày sinh", field: "DateOfBirth" })
+          if (!soldier.UnitID) {
+            soldier.errors.push("Thiếu mã đơn vị")
+            validationErrors.push({ rowNumber, message: "Thiếu mã đơn vị", field: "UnitID" })
           }
-
-          if (!soldier.Gender) {
-            soldier.errors.push("Thiếu giới tính")
-            validationErrors.push({ rowNumber, message: "Thiếu giới tính", field: "Gender" })
+          if (!soldier.RankID) {
+            soldier.errors.push("Thiếu mã cấp bậc")
+            validationErrors.push({ rowNumber, message: "Thiếu mã cấp bậc", field: "RankID" })
           }
-
           if (!soldier.CitizenID) {
             soldier.errors.push("Thiếu số CCCD")
             validationErrors.push({ rowNumber, message: "Thiếu số CCCD", field: "CitizenID" })
           }
 
-          if (!soldier.RankName) {
-            soldier.errors.push("Thiếu cấp bậc")
-            validationErrors.push({ rowNumber, message: "Thiếu cấp bậc", field: "RankName" })
-          }
-
-          if (!soldier.Position) {
-            soldier.errors.push("Thiếu chức vụ")
-            validationErrors.push({ rowNumber, message: "Thiếu chức vụ", field: "Position" })
-          }
-
-          if (!soldier.UnitName) {
-            soldier.errors.push("Thiếu đơn vị")
-            validationErrors.push({ rowNumber, message: "Thiếu đơn vị", field: "UnitName" })
-          }
-
-          if (!soldier.EnlistmentDate) {
-            soldier.errors.push("Thiếu ngày nhập ngũ")
-            validationErrors.push({ rowNumber, message: "Thiếu ngày nhập ngũ", field: "EnlistmentDate" })
-          }
-
-          // Date validation - Kiểm tra định dạng ngày
+          // Date validation
           const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
           if (soldier.DateOfBirth && !dateRegex.test(soldier.DateOfBirth)) {
             soldier.errors.push("Ngày sinh không đúng định dạng (DD/MM/YYYY)")
-            validationErrors.push({
-              rowNumber,
-              message: "Ngày sinh không đúng định dạng",
-              field: "DateOfBirth",
-              value: soldier.DateOfBirth,
-            })
+            validationErrors.push({ rowNumber, message: "Ngày sinh sai định dạng", field: "DateOfBirth", value: soldier.DateOfBirth })
           }
-
           if (soldier.EnlistmentDate && !dateRegex.test(soldier.EnlistmentDate)) {
             soldier.errors.push("Ngày nhập ngũ không đúng định dạng (DD/MM/YYYY)")
-            validationErrors.push({
-              rowNumber,
-              message: "Ngày nhập ngũ không đúng định dạng",
-              field: "EnlistmentDate",
-              value: soldier.EnlistmentDate,
-            })
+            validationErrors.push({ rowNumber, message: "Ngày nhập ngũ sai định dạng", field: "EnlistmentDate", value: soldier.EnlistmentDate })
           }
 
           // Set status
@@ -415,7 +500,7 @@ export default function ImportSoldiersPage() {
         setImportData(parsedData)
         setErrors(validationErrors)
         setSummary({
-          totalRows: rows.length,
+          totalRows: basicRows.length,
           validRows: validCount,
           warningRows: warningCount,
           errorRows: errorCount,
@@ -425,7 +510,7 @@ export default function ImportSoldiersPage() {
         })
 
         setCurrentStep(1)
-        message.success("Đã tải và kiểm tra file Excel")
+        message.success(`Đã tải file: ${basicRows.length} quân nhân, ${familyBySoldierID.size} thân nhân, ${workBySoldierID.size} quá trình công tác, ${trainingBySoldierID.size} quá trình đào tạo`)
       } catch (error) {
         console.error("Lỗi khi đọc file Excel:", error)
         message.error("Lỗi khi đọc file Excel")
@@ -449,47 +534,113 @@ export default function ImportSoldiersPage() {
 
     setImporting(true)
     try {
+      // Lọc bỏ các dòng lỗi
       const validData = importData.filter((row) => row.Status !== "error")
-      let successCount = 0
-      let failCount = 0
 
-      for (const row of validData) {
-        try {
-          const response = await fetch("/api/soldiers", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({
-              FullName: row.FullName,
-              DateOfBirth: parseDate(row.DateOfBirth),
-              Gender: row.Gender === "Nam" ? 1 : 0,
-              CitizenID: row.CitizenID,
-              RankID: row.RankName, // TODO: Map to RankID
-              Position: row.Position,
-              UnitID: row.UnitName, // TODO: Map to UnitID
-              EnlistmentDate: parseDate(row.EnlistmentDate),
-              CreatedBy: user.userId,
-            }),
-          })
+      // Chuẩn bị dữ liệu gửi lên API
+      const soldiersPayload = validData.map((row) => ({
+        SoldierID: row.SoldierID,
+        FullName: row.FullName,
+        UnitID: row.UnitID,
+        UnitName: row.UnitName,
+        Position: row.Position,
+        RankID: row.RankID,
+        RankName: row.RankName,
+        DateOfBirth: parseDate(row.DateOfBirth),
+        Gender: row.Gender === "Nam" ? 1 : 0,
+        CitizenID: row.CitizenID,
+        Hometown: row.Hometown,
+        Address: row.Address,
+        ProvinceID: row.ProvinceID,
+        ProvinceName: row.ProvinceName,
+        WardID: row.WardID,
+        WardName: row.WardName,
+        Ethnicity: row.Ethnicity,
+        SoldierType: row.SoldierType,
+        Religion: row.Religion,
+        MaritalStatusID: row.MaritalStatusID,
+        MaritalStatus: row.MaritalStatus,
+        EducationLevel: row.EducationLevel,
+        Specialization: row.Specialization,
+        PoliticalLevel: row.PoliticalLevel,
+        BloodType: row.BloodType,
+        HealthClassification: row.HealthClassification,
+        Height: row.Height,
+        Weight: row.Weight,
+        BloodPressure: row.BloodPressure,
+        EnlistmentDate: parseDate(row.EnlistmentDate),
+        PartyJoinDate: parseDate(row.PartyJoinDate || ""),
+        YouthUnionJoinDate: parseDate(row.YouthUnionJoinDate || ""),
+        PhotoPath: row.PhotoPath,
+        FamilyMembers: row.FamilyMembers?.map((m) => ({
+          Relationship: m.Relationship,
+          FullName: m.FullName,
+          DateOfBirth: parseDate(m.DateOfBirth || ""),
+          Occupation: m.Occupation,
+          Workplace: m.Workplace,
+          PhoneNumber: m.PhoneNumber,
+          Address: m.Address,
+          IsDependent: m.IsDependent,
+        })),
+        WorkProcesses: row.WorkProcesses?.map((w) => ({
+          FromDate: parseDate(w.FromDate || ""),
+          ToDate: w.ToDate === "nay" ? null : parseDate(w.ToDate || ""),
+          WorkDescription: w.Description,
+          RankID: w.RankID,
+          PartyPosition: w.PartyPosition,
+        })),
+        TrainingProcesses: row.TrainingProcesses?.map((t) => ({
+          SchoolName: t.SchoolName,
+          MajorName: t.MajorName,
+          FromDate: parseDate(t.FromDate || ""),
+          ToDate: parseDate(t.ToDate || ""),
+          TrainingType: t.TrainingType,
+          Certificate: t.Certificate,
+        })),
+      }))
 
-          const result = await response.json()
-          if (result.success) {
-            successCount++
-          } else {
-            failCount++
-          }
-        } catch (error) {
-          failCount++
+      // Gọi API import
+      const response = await fetch("/api/soldiers/import", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          soldiers: soldiersPayload,
+          userId: user.userId,
+        }),
+      })
+
+      const result = await response.json()
+
+      if (result.success) {
+        const { success, failed, results } = result.data
+        
+        // Cập nhật summary với kết quả thực tế
+        setSummary((prev) => prev ? {
+          ...prev,
+          validRows: success,
+          errorRows: failed,
+        } : prev)
+
+        // Hiển thị thông báo chi tiết
+        if (failed > 0) {
+          const errorMessages = results
+            .filter((r: any) => !r.success)
+            .slice(0, 5)
+            .map((r: any) => `Dòng ${r.rowNumber}: ${r.error}`)
+            .join("\n")
+          
+          message.warning(
+            `Đã nhập ${success} quân nhân. ${failed} thất bại:\n${errorMessages}`,
+            10
+          )
+        } else {
+          message.success(`Đã nhập thành công ${success} quân nhân vào hệ thống`)
         }
-      }
 
-      if (successCount > 0) {
-        message.success(`Đã nhập thành công ${successCount} quân nhân`)
+        setCurrentStep(3)
+      } else {
+        message.error(result.message || "Lỗi khi import dữ liệu")
       }
-      if (failCount > 0) {
-        message.warning(`${failCount} quân nhân nhập thất bại`)
-      }
-
-      setCurrentStep(3)
     } catch (error) {
       console.error("Lỗi khi import:", error)
       message.error("Lỗi khi import dữ liệu")
@@ -500,10 +651,23 @@ export default function ImportSoldiersPage() {
 
   const parseDate = (dateStr: string) => {
     if (!dateStr) return null
+    
+    // Nếu chỉ có năm (cho ngày sinh thân nhân)
+    if (/^\d{4}$/.test(dateStr)) {
+      return `${dateStr}-01-01` // Giả sử là 01/01/YYYY
+    }
+    
+    // Nếu là DD/MM/YYYY
     const parts = dateStr.split("/")
     if (parts.length === 3) {
       return `${parts[2]}-${parts[1]}-${parts[0]}`
     }
+    
+    // Nếu đã là YYYY-MM-DD
+    if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) {
+      return dateStr
+    }
+    
     return null
   }
 
@@ -527,11 +691,19 @@ export default function ImportSoldiersPage() {
       dataIndex: "rowNumber",
       width: 60,
       align: "center",
+      fixed: "left",
+    },
+    {
+      title: "Mã QN",
+      dataIndex: "SoldierID",
+      width: 100,
+      fixed: "left",
     },
     {
       title: "Họ và tên",
       dataIndex: "FullName",
       width: 180,
+      fixed: "left",
     },
     {
       title: "Ngày sinh",
@@ -542,6 +714,7 @@ export default function ImportSoldiersPage() {
       title: "Giới tính",
       dataIndex: "Gender",
       width: 100,
+      render: (gender: string) => gender === "1" ? "Nam" : "Nữ",
     },
     {
       title: "CCCD",
@@ -549,9 +722,14 @@ export default function ImportSoldiersPage() {
       width: 140,
     },
     {
-      title: "Cấp bậc",
-      dataIndex: "RankName",
-      width: 120,
+      title: "Mã đơn vị",
+      dataIndex: "UnitID",
+      width: 150,
+    },
+    {
+      title: "Đơn vị",
+      dataIndex: "UnitName",
+      width: 200,
     },
     {
       title: "Chức vụ",
@@ -559,9 +737,94 @@ export default function ImportSoldiersPage() {
       width: 150,
     },
     {
-      title: "Đơn vị",
-      dataIndex: "UnitName",
+      title: "Mã cấp bậc",
+      dataIndex: "RankID",
+      width: 120,
+    },
+    {
+      title: "Cấp bậc",
+      dataIndex: "RankName",
+      width: 120,
+    },
+    {
+      title: "Quê quán",
+      dataIndex: "Hometown",
+      width: 200,
+    },
+    {
+      title: "Địa chỉ",
+      dataIndex: "Address",
+      width: 200,
+    },
+    {
+      title: "Tỉnh/TP",
+      dataIndex: "ProvinceName",
       width: 150,
+    },
+    {
+      title: "Xã/Phường",
+      dataIndex: "WardName",
+      width: 150,
+    },
+    {
+      title: "Dân tộc",
+      dataIndex: "Ethnicity",
+      width: 100,
+    },
+    {
+      title: "Tôn giáo",
+      dataIndex: "Religion",
+      width: 120,
+    },
+    {
+      title: "Mã TTHN",
+      dataIndex: "MaritalStatusID",
+      width: 120,
+    },
+    {
+      title: "Tình trạng HN",
+      dataIndex: "MaritalStatus",
+      width: 150,
+    },
+    {
+      title: "Học vấn",
+      dataIndex: "EducationLevel",
+      width: 120,
+    },
+    {
+      title: "Chuyên môn",
+      dataIndex: "Specialization",
+      width: 150,
+    },
+    {
+      title: "Chính trị",
+      dataIndex: "PoliticalLevel",
+      width: 120,
+    },
+    {
+      title: "Nhóm máu",
+      dataIndex: "BloodType",
+      width: 100,
+    },
+    {
+      title: "Sức khỏe",
+      dataIndex: "HealthClassification",
+      width: 120,
+    },
+    {
+      title: "Cao (cm)",
+      dataIndex: "Height",
+      width: 80,
+    },
+    {
+      title: "Nặng (kg)",
+      dataIndex: "Weight",
+      width: 80,
+    },
+    {
+      title: "Huyết áp",
+      dataIndex: "BloodPressure",
+      width: 120,
     },
     {
       title: "Ngày nhập ngũ",
@@ -569,10 +832,26 @@ export default function ImportSoldiersPage() {
       width: 130,
     },
     {
+      title: "Ngày vào Đảng",
+      dataIndex: "PartyJoinDate",
+      width: 130,
+    },
+    {
+      title: "Ngày vào Đoàn",
+      dataIndex: "YouthUnionJoinDate",
+      width: 130,
+    },
+    {
+      title: "Link ảnh",
+      dataIndex: "PhotoURL",
+      width: 200,
+    },
+    {
       title: "Trạng thái",
       dataIndex: "Status",
       width: 100,
       align: "center",
+      fixed: "right",
       render: (status: string) => {
         if (status === "valid") return <CheckCircleOutlined style={{ color: "#52c41a" }} />
         if (status === "warning") return <WarningOutlined style={{ color: "#faad14" }} />
@@ -657,7 +936,7 @@ export default function ImportSoldiersPage() {
                 title="Tổng số dòng"
                 value={summary?.totalRows}
                 prefix={<FileExcelOutlined />}
-                valueStyle={{ color: "#3a4d2e" }}
+                styles={{ content: { color: "#3a4d2e" } }}
               />
             </Col>
             <Col span={6}>
@@ -665,7 +944,7 @@ export default function ImportSoldiersPage() {
                 title="Hợp lệ"
                 value={summary?.validRows}
                 prefix={<CheckCircleOutlined />}
-                valueStyle={{ color: "#52c41a" }}
+                styles={{ content: { color: "#52c41a" } }}
               />
             </Col>
             <Col span={6}>
@@ -673,7 +952,7 @@ export default function ImportSoldiersPage() {
                 title="Cảnh báo"
                 value={summary?.warningRows}
                 prefix={<WarningOutlined />}
-                valueStyle={{ color: "#faad14" }}
+                styles={{ content: { color: "#faad14" } }}
               />
             </Col>
             <Col span={6}>
@@ -681,7 +960,7 @@ export default function ImportSoldiersPage() {
                 title="Lỗi"
                 value={summary?.errorRows}
                 prefix={<CloseCircleOutlined />}
-                valueStyle={{ color: "#ff4d4f" }}
+                styles={{ content: { color: "#ff4d4f" } }}
               />
             </Col>
           </Row>
@@ -702,13 +981,136 @@ export default function ImportSoldiersPage() {
         </Card>
 
         <Card title={`Xem trước dữ liệu (${Math.min(10, importData.length)} dòng đầu tiên)`} style={{ borderRadius: 8 }}>
-          <Table
-            rowKey="rowNumber"
-            columns={previewColumns}
-            dataSource={importData.slice(0, 10)}
-            pagination={false}
-            scroll={{ x: 1200 }}
-            size="small"
+          <Tabs 
+            defaultActiveKey="soldiers"
+            items={[
+              {
+                key: "soldiers",
+                label: `Thông tin chiến sĩ (${importData.length})`,
+                children: (
+                  <Table
+                    rowKey="rowNumber"
+                    columns={previewColumns}
+                    dataSource={importData.slice(0, 10)}
+                    pagination={false}
+                    scroll={{ x: 4000 }}
+                    size="small"
+                  />
+                )
+              },
+              {
+                key: "family",
+                label: `Thân nhân (${importData.reduce((sum, row) => sum + (row.FamilyMembers?.length || 0), 0)})`,
+                children: importData.some(row => row.FamilyMembers && row.FamilyMembers.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Quan hệ", dataIndex: "relationship", width: 120 },
+                      { title: "Họ và tên", dataIndex: "fullName", width: 180 },
+                      { title: "Ngày sinh", dataIndex: "dateOfBirth", width: 120 },
+                      { title: "Nghề nghiệp", dataIndex: "occupation", width: 150 },
+                      { title: "Nơi công tác", dataIndex: "workplace", width: 200 },
+                      { title: "SĐT", dataIndex: "phoneNumber", width: 120 },
+                      { title: "Địa chỉ", dataIndex: "address", width: 200 },
+                      { title: "Phụ thuộc", dataIndex: "isDependent", width: 100, render: (v: boolean) => v ? "Có" : "Không" },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.FamilyMembers || []).map(member => ({
+                        soldierID: row.SoldierID,
+                        relationship: member.Relationship,
+                        fullName: member.FullName,
+                        dateOfBirth: member.DateOfBirth,
+                        occupation: member.Occupation,
+                        workplace: member.Workplace,
+                        phoneNumber: member.PhoneNumber,
+                        address: member.Address,
+                        isDependent: member.IsDependent,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1200 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu thân nhân
+                  </div>
+                )
+              },
+              {
+                key: "work",
+                label: `Quá trình công tác (${importData.reduce((sum, row) => sum + (row.WorkProcesses?.length || 0), 0)})`,
+                children: importData.some(row => row.WorkProcesses && row.WorkProcesses.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
+                      { title: "Đến ngày", dataIndex: "toDate", width: 120 },
+                      { title: "Đơn vị/Chức vụ", dataIndex: "description", width: 300 },
+                      { title: "Mã cấp bậc", dataIndex: "rankID", width: 120 },
+                      { title: "Cấp bậc", dataIndex: "rankName", width: 120 },
+                      { title: "Chức vụ Đảng", dataIndex: "partyPosition", width: 150 },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.WorkProcesses || []).map(work => ({
+                        soldierID: row.SoldierID,
+                        fromDate: work.FromDate,
+                        toDate: work.ToDate,
+                        description: work.Description,
+                        rankID: work.RankID,
+                        rankName: work.RankName,
+                        partyPosition: work.PartyPosition,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1000 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu quá trình công tác
+                  </div>
+                )
+              },
+              {
+                key: "training",
+                label: `Quá trình đào tạo (${importData.reduce((sum, row) => sum + (row.TrainingProcesses?.length || 0), 0)})`,
+                children: importData.some(row => row.TrainingProcesses && row.TrainingProcesses.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Tên trường", dataIndex: "schoolName", width: 200 },
+                      { title: "Ngành học", dataIndex: "majorName", width: 180 },
+                      { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
+                      { title: "Đến ngày", dataIndex: "toDate", width: 120 },
+                      { title: "Hình thức", dataIndex: "trainingType", width: 150 },
+                      { title: "Bằng/Chứng chỉ", dataIndex: "certificate", width: 150 },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.TrainingProcesses || []).map(training => ({
+                        soldierID: row.SoldierID,
+                        schoolName: training.SchoolName,
+                        majorName: training.MajorName,
+                        fromDate: training.FromDate,
+                        toDate: training.ToDate,
+                        trainingType: training.TrainingType,
+                        certificate: training.Certificate,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1000 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu quá trình đào tạo
+                  </div>
+                )
+              }
+            ]}
           />
         </Card>
       </Col>
@@ -794,7 +1196,7 @@ export default function ImportSoldiersPage() {
   const renderStep3 = () => (
     <Card style={{ borderRadius: 8 }}>
       <Alert
-        message="Xác nhận nhập dữ liệu"
+        title="Xác nhận nhập dữ liệu"
         description={`Bạn sắp nhập ${summary?.validRows} quân nhân vào hệ thống. Dữ liệu cảnh báo và lỗi sẽ không được nhập.`}
         type="info"
         showIcon
@@ -807,7 +1209,7 @@ export default function ImportSoldiersPage() {
             <Statistic
               title="Sẽ nhập"
               value={summary?.validRows}
-              valueStyle={{ color: "#52c41a" }}
+              styles={{ content: { color: "#52c41a" } }}
               suffix="quân nhân"
             />
           </Card>
@@ -817,7 +1219,7 @@ export default function ImportSoldiersPage() {
             <Statistic
               title="Bỏ qua (cảnh báo)"
               value={summary?.warningRows}
-              valueStyle={{ color: "#faad14" }}
+              styles={{ content: { color: "#faad14" } }}
               suffix="dòng"
             />
           </Card>
@@ -827,7 +1229,7 @@ export default function ImportSoldiersPage() {
             <Statistic
               title="Bỏ qua (lỗi)"
               value={summary?.errorRows}
-              valueStyle={{ color: "#ff4d4f" }}
+              styles={{ content: { color: "#ff4d4f" } }}
               suffix="dòng"
             />
           </Card>
@@ -869,10 +1271,10 @@ export default function ImportSoldiersPage() {
   )
 
   const steps = [
-    { title: "Tải file Excel", description: "Chọn và tải file Excel" },
-    { title: "Kiểm tra dữ liệu", description: "Hệ thống kiểm tra và đối chiếu" },
-    { title: "Xem trước dữ liệu", description: "Xem dữ liệu trước khi nhập" },
-    { title: "Hoàn tất", description: "Nhập dữ liệu vào hệ thống" },
+    { title: "Tải file Excel", content: "Chọn và tải file Excel" },
+    { title: "Kiểm tra dữ liệu", content: "Hệ thống kiểm tra và đối chiếu" },
+    { title: "Xem trước dữ liệu", content: "Xem dữ liệu trước khi nhập" },
+    { title: "Hoàn tất", content: "Nhập dữ liệu vào hệ thống" },
   ]
 
   return (

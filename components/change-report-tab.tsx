@@ -5,9 +5,13 @@ import {
   App,
   Button,
   Card,
+  Col,
+  DatePicker,
   Form,
   Input,
   Modal,
+  Row,
+  Select,
   Space,
   Table,
   Tabs,
@@ -15,8 +19,9 @@ import {
   Typography,
 } from "antd"
 import type { ColumnsType } from "antd/es/table"
-import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, EyeOutlined, PlusOutlined, ReloadOutlined } from "@ant-design/icons"
+import { CheckCircleOutlined, CloseCircleOutlined, ExclamationCircleOutlined, EyeOutlined, PlusOutlined, ReloadOutlined, SearchOutlined, FilterOutlined } from "@ant-design/icons"
 import { useAuth } from "@/components/auth-provider"
+import dayjs from "dayjs"
 
 const { TextArea } = Input
 
@@ -169,6 +174,15 @@ export function ChangeReportTab() {
   const [selectedHistory, setSelectedHistory] = useState<HistoryDetailResponse | null>(null)
   const [reviewingRequestId, setReviewingRequestId] = useState<string | null>(null)
   const [form] = Form.useForm()
+
+  // Filter states for History tab
+  const [historySearch, setHistorySearch] = useState("")
+  const [historyTypeFilter, setHistoryTypeFilter] = useState<string | undefined>(undefined)
+  const [historyDateRange, setHistoryDateRange] = useState<[dayjs.Dayjs | null, dayjs.Dayjs | null] | null>(null)
+
+  // Filter states for Permission Requests tab
+  const [requestSearch, setRequestSearch] = useState("")
+  const [requestStatusFilter, setRequestStatusFilter] = useState<string | undefined>(undefined)
 
   const canReviewRequests = hasPermission("canApproveRequest") || (user?.permissionLevel ?? 99) < 3
 
@@ -538,11 +552,81 @@ export function ChangeReportTab() {
     },
   ], [canReviewRequests, reviewingRequestId])
 
+  // Filter logic for History
+  const filteredHistory = useMemo(() => {
+    let filtered = history.filter((item) => ["INSERT", "UPDATE", "DELETE"].includes(item.ChangeType))
+    
+    // Filter by search text
+    if (historySearch.trim()) {
+      const searchLower = historySearch.toLowerCase()
+      filtered = filtered.filter((item) => 
+        item.ChangedByName?.toLowerCase().includes(searchLower) ||
+        item.Description?.toLowerCase().includes(searchLower) ||
+        item.ChangeReason?.toLowerCase().includes(searchLower) ||
+        item.ID?.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    // Filter by type
+    if (historyTypeFilter) {
+      filtered = filtered.filter((item) => item.ChangeType === historyTypeFilter)
+    }
+    
+    // Filter by date range
+    if (historyDateRange && historyDateRange[0] && historyDateRange[1]) {
+      const startDate = historyDateRange[0].startOf('day').valueOf()
+      const endDate = historyDateRange[1].endOf('day').valueOf()
+      filtered = filtered.filter((item) => {
+        const itemDate = new Date(item.ChangeDate).getTime()
+        return itemDate >= startDate && itemDate <= endDate
+      })
+    }
+    
+    return filtered
+  }, [history, historySearch, historyTypeFilter, historyDateRange])
+
+  // Filter logic for Permission Requests
+  const filteredRequests = useMemo(() => {
+    let filtered = [...permissionRequests]
+    
+    // Filter by search text
+    if (requestSearch.trim()) {
+      const searchLower = requestSearch.toLowerCase()
+      filtered = filtered.filter((item) => 
+        item.RequestByName?.toLowerCase().includes(searchLower) ||
+        item.Title?.toLowerCase().includes(searchLower) ||
+        item.Description?.toLowerCase().includes(searchLower) ||
+        item.ID?.toLowerCase().includes(searchLower)
+      )
+    }
+    
+    // Filter by status
+    if (requestStatusFilter) {
+      filtered = filtered.filter((item) => normalizeRequestStatus(item.StatusID) === requestStatusFilter)
+    }
+    
+    return filtered
+  }, [permissionRequests, requestSearch, requestStatusFilter])
+
+  // Reset filters when switching tabs
+  const handleTabChange = (key: string) => {
+    setActiveInnerTab(key)
+    // Reset filters when switching
+    if (key === "history") {
+      setRequestSearch("")
+      setRequestStatusFilter(undefined)
+    } else {
+      setHistorySearch("")
+      setHistoryTypeFilter(undefined)
+      setHistoryDateRange(null)
+    }
+  }
+
   return (
     <Card>
       <Tabs
         activeKey={activeInnerTab}
-        onChange={setActiveInnerTab}
+        onChange={handleTabChange}
         tabBarExtraContent={(
           <Space>
             <Button icon={<ReloadOutlined />} onClick={refreshAll}>Tải lại</Button>
@@ -554,28 +638,126 @@ export function ChangeReportTab() {
         items={[
           {
             key: "history",
-            label: `Lịch sử thay đổi (${history.filter((item) => ["INSERT", "UPDATE", "DELETE"].includes(item.ChangeType)).length})`,
+            label: `Lịch sử thay đổi (${filteredHistory.length})`,
             children: (
-              <Table<ChangeHistoryRow>
-                rowKey={(record) => getHistoryId(record)}
-                columns={historyColumns}
-                dataSource={history.filter((item) => ["INSERT", "UPDATE", "DELETE"].includes(item.ChangeType))}
-                loading={historyLoading}
-                pagination={{ pageSize: 20, showSizeChanger: true }}
-              />
+              <div>
+                {/* Filter Bar for History */}
+                <Card size="small" style={{ marginBottom: 16, background: "#fafafa" }} styles={{ body: { padding: "12px 16px" } }}>
+                  <Row gutter={[12, 12]} align="middle">
+                    <Col flex="auto">
+                      <Input
+                        placeholder="Tìm theo tên người thao tác, nội dung, mã..."
+                        prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+                        value={historySearch}
+                        onChange={(e) => setHistorySearch(e.target.value)}
+                        style={{ maxWidth: 350 }}
+                        allowClear
+                      />
+                    </Col>
+                    <Col>
+                      <Select
+                        placeholder="Loại thay đổi"
+                        value={historyTypeFilter}
+                        onChange={setHistoryTypeFilter}
+                        style={{ width: 160 }}
+                        allowClear
+                        options={[
+                          { value: "INSERT", label: "Thêm mới" },
+                          { value: "UPDATE", label: "Cập nhật" },
+                          { value: "DELETE", label: "Xoá" },
+                        ]}
+                      />
+                    </Col>
+                    <Col>
+                      <DatePicker.RangePicker
+                        value={historyDateRange}
+                        onChange={(dates) => setHistoryDateRange(dates as [dayjs.Dayjs | null, dayjs.Dayjs | null] | null)}
+                        format="DD/MM/YYYY"
+                        placeholder={["Từ ngày", "Đến ngày"]}
+                        style={{ width: 260 }}
+                      />
+                    </Col>
+                    <Col>
+                      <Button 
+                        icon={<FilterOutlined />} 
+                        onClick={() => {
+                          setHistorySearch("")
+                          setHistoryTypeFilter(undefined)
+                          setHistoryDateRange(null)
+                        }}
+                      >
+                        Xóa bộ lọc
+                      </Button>
+                    </Col>
+                  </Row>
+                </Card>
+                
+                <Table<ChangeHistoryRow>
+                  rowKey={(record) => getHistoryId(record)}
+                  columns={historyColumns}
+                  dataSource={filteredHistory}
+                  loading={historyLoading}
+                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `Tổng ${total} bản ghi` }}
+                  locale={{ emptyText: "Không có dữ liệu" }}
+                />
+              </div>
             ),
           },
           {
             key: "permissionRequests",
-            label: `Yêu cầu mở quyền (${permissionRequests.length})`,
+            label: `Yêu cầu mở quyền (${filteredRequests.length})`,
             children: (
-              <Table<PermissionRequestRow>
-                rowKey={(record) => getRequestId(record)}
-                columns={requestColumns}
-                dataSource={permissionRequests}
-                loading={requestLoading}
-                pagination={{ pageSize: 20, showSizeChanger: true }}
-              />
+              <div>
+                {/* Filter Bar for Permission Requests */}
+                <Card size="small" style={{ marginBottom: 16, background: "#fafafa" }} styles={{ body: { padding: "12px 16px" } }}>
+                  <Row gutter={[12, 12]} align="middle">
+                    <Col flex="auto">
+                      <Input
+                        placeholder="Tìm theo tên người yêu cầu, nội dung, mã..."
+                        prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
+                        value={requestSearch}
+                        onChange={(e) => setRequestSearch(e.target.value)}
+                        style={{ maxWidth: 350 }}
+                        allowClear
+                      />
+                    </Col>
+                    <Col>
+                      <Select
+                        placeholder="Trạng thái"
+                        value={requestStatusFilter}
+                        onChange={setRequestStatusFilter}
+                        style={{ width: 160 }}
+                        allowClear
+                        options={[
+                          { value: "Pending", label: "Chờ duyệt" },
+                          { value: "Approved", label: "Đã duyệt" },
+                          { value: "Rejected", label: "Đã từ chối" },
+                        ]}
+                      />
+                    </Col>
+                    <Col>
+                      <Button 
+                        icon={<FilterOutlined />} 
+                        onClick={() => {
+                          setRequestSearch("")
+                          setRequestStatusFilter(undefined)
+                        }}
+                      >
+                        Xóa bộ lọc
+                      </Button>
+                    </Col>
+                  </Row>
+                </Card>
+                
+                <Table<PermissionRequestRow>
+                  rowKey={(record) => getRequestId(record)}
+                  columns={requestColumns}
+                  dataSource={filteredRequests}
+                  loading={requestLoading}
+                  pagination={{ pageSize: 20, showSizeChanger: true, showTotal: (total) => `Tổng ${total} yêu cầu` }}
+                  locale={{ emptyText: "Không có dữ liệu" }}
+                />
+              </div>
             ),
           },
         ]}

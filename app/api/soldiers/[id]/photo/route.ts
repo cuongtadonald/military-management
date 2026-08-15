@@ -13,10 +13,10 @@ import path from 'path'
 // POST: Upload ảnh quân nhân
 export async function POST(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const soldierId = params.id
+    const { id: soldierId } = await params
     const formData = await request.formData()
     const photoFile = formData.get('photo') as File
     const userId = formData.get('userId') as string
@@ -102,10 +102,10 @@ export async function POST(
 // DELETE: Xóa ảnh quân nhân
 export async function DELETE(
   request: NextRequest,
-  { params }: { params: { id: string } }
+  { params }: { params: Promise<{ id: string }> }
 ) {
   try {
-    const soldierId = params.id
+    const { id: soldierId } = await params
     const { searchParams } = new URL(request.url)
     const userId = searchParams.get('userId')
 

@@ -33,7 +33,8 @@ const menuItems: SidebarItem[] = [
   { key: "overview", icon: <DashboardOutlined />, label: "Tổng quan", path: "/" },
   { key: "soldiers", icon: <TeamOutlined />, label: "Danh sách quân nhân", path: "/soldiers" },
   { key: "add", icon: <UserAddOutlined />, label: "Thêm quân nhân", path: "/soldiers/add" },
-  { key: "reports", icon: <BarChartOutlined />, label: "Báo cáo – Thống kê", path: "/reports" },
+  // Tạm thời ẩn Báo cáo – Thống kê
+  // { key: "reports", icon: <BarChartOutlined />, label: "Báo cáo – Thống kê", path: "/reports" },
   { key: "documents", icon: <FileTextOutlined />, label: "Tài liệu quân lực", path: "/documents" },
   { key: "permissionRequests", icon: <BellOutlined />, label: "Yêu cầu cấp quyền", path: "/permission-requests" },
   { key: "history", icon: <HistoryOutlined />, label: "Lịch sử thay đổi", path: "/change-history" },

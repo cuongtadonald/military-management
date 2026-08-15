@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { Badge, Dropdown, List, Avatar, Typography, Button, Space, Empty, Spin, Tag } from 'antd';
 import { BellOutlined, CheckOutlined, MailOutlined, GlobalOutlined, TeamOutlined } from '@ant-design/icons';
 import { useAuth } from '@/components/auth-provider';
@@ -34,16 +34,10 @@ export default function NotificationBell() {
   const [unreadCount, setUnreadCount] = useState(0);
   const [loading, setLoading] = useState(false);
   const [open, setOpen] = useState(false);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const reconnectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
-  useEffect(() => {
-    if (user?.userId) {
-      fetchNotifications();
-      // Poll mỗi 30 giây
-      const interval = setInterval(fetchNotifications, 30000);
-      return () => clearInterval(interval);
-    }
-  }, [user?.userId]);
-
+  // Fetch notifications từ API
   const fetchNotifications = async () => {
     if (!user?.userId) return;
     
@@ -59,6 +53,76 @@ export default function NotificationBell() {
       console.error('Error fetching notifications:', error);
     }
   };
+
+  // Kết nối SSE cho realtime
+  useEffect(() => {
+    if (!user?.userId) return;
+
+    // Fetch lần đầu
+    fetchNotifications();
+
+    // Cleanup function
+    const cleanup = () => {
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
+      if (reconnectTimeoutRef.current) {
+        clearTimeout(reconnectTimeoutRef.current);
+        reconnectTimeoutRef.current = null;
+      }
+    };
+
+    // Connect SSE
+    const connectSSE = () => {
+      cleanup();
+
+      const eventSource = new EventSource(`/api/notifications/stream?userId=${user.userId}`);
+      eventSourceRef.current = eventSource;
+
+      // Khi kết nối thành công
+      eventSource.onopen = () => {
+        console.log('SSE connected');
+      };
+
+      // Khi nhận message
+      eventSource.onmessage = (event) => {
+        try {
+          const data = JSON.parse(event.data);
+          
+          if (data.type === 'new_notification') {
+            // Có thông báo mới, fetch lại
+            fetchNotifications();
+          }
+          // Heartbeat - không cần xử lý
+        } catch (error) {
+          console.error('Error parsing SSE message:', error);
+        }
+      };
+
+      // Khi có lỗi (bao gồm disconnect)
+      eventSource.onerror = () => {
+        console.log('SSE error, reconnecting in 5s...');
+        eventSource.close();
+        eventSourceRef.current = null;
+
+        // Reconnect sau 5 giây
+        reconnectTimeoutRef.current = setTimeout(() => {
+          connectSSE();
+        }, 5000);
+      };
+    };
+
+    connectSSE();
+
+    // Fallback polling mỗi 30 giây (phòng khi SSE không hoạt động)
+    const fallbackPoll = setInterval(fetchNotifications, 30000);
+
+    return () => {
+      cleanup();
+      clearInterval(fallbackPoll);
+    };
+  }, [user?.userId]);
 
   const markAsRead = async (notificationId: string) => {
     try {
@@ -176,7 +240,7 @@ export default function NotificationBell() {
 
   return (
     <Dropdown
-      dropdownRender={() => notificationMenu}
+      popupRender={() => notificationMenu}
       trigger={['click']}
       open={open}
       onOpenChange={setOpen}

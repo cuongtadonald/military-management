@@ -89,7 +89,8 @@ export async function GET(request: NextRequest) {
     try {
       const pendingRequest = pool.request().input('userId', sql.VarChar, userId)
       const pendingResult = await pendingRequest.execute('W01P0005')
-      const rows = pendingResult.recordsets?.[1] || pendingResult.recordset || []
+      const recordsets = pendingResult.recordsets as any
+      const rows = recordsets?.[1] || pendingResult.recordset || []
       pendingCount = rows.filter((row: any) => {
         const status = String(row?.StatusID || row?.Status || '').toLowerCase()
         return status === 'pending'

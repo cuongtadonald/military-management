@@ -130,7 +130,6 @@ export default function PermissionRequestsPage() {
   const [createForm, setCreateForm] = useState({
     title: "",
     description: "",
-    reason: "",
   })
 
   const canReviewRequests = hasPermission("canApproveRequest") || (user?.permissionLevel ?? 99) < 3
@@ -315,7 +314,17 @@ export default function PermissionRequestsPage() {
   }
 
   const handleCreateRequest = async () => {
-    if (!user?.userId) return
+    if (!user?.userId) {
+      message.error("Thiếu thông tin người dùng")
+      return
+    }
+
+    // Kiểm tra xem user có đang bị tắt quyền chỉnh sửa không
+    // Nếu permissionLevel > 3 hoặc không có quyền canEdit, không cho gửi yêu cầu
+    if (!hasPermission('canEdit') && user.permissionLevel > 3) {
+      message.warning("Tài khoản của bạn đã bị tắt quyền chỉnh sửa. Vui lòng liên hệ quản trị viên.")
+      return
+    }
 
     if (!createForm.title.trim()) {
       message.error("Vui lòng nhập tiêu đề yêu cầu")
@@ -327,28 +336,22 @@ export default function PermissionRequestsPage() {
       return
     }
 
-    if (!createForm.reason.trim()) {
-      message.error("Vui lòng nhập lý do yêu cầu")
-      return
-    }
-
     try {
       setCreating(true)
       const response = await fetch("/api/permission-requests", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          userId: user.userId,
+          requestBy: user.userId,
           title: createForm.title,
-          description: createForm.description,
-          reason: createForm.reason,
+          content: createForm.description,
         }),
       })
       const result = await response.json()
       if (result.success) {
         message.success("Đã tạo yêu cầu mở quyền thành công")
         setCreateModalOpen(false)
-        setCreateForm({ title: "", description: "", reason: "" })
+        setCreateForm({ title: "", description: "" })
         await loadPermissionRequests()
       } else {
         message.error(result.message || "Lỗi khi tạo yêu cầu")
@@ -551,14 +554,16 @@ export default function PermissionRequestsPage() {
             >
               Làm mới
             </Button>
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={() => setCreateModalOpen(true)}
-              style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
-            >
-              Tạo yêu cầu
-            </Button>
+            {user?.userId !== 'U002' && (hasPermission('canEdit') || user.permissionLevel <= 3) && (
+              <Button
+                type="primary"
+                icon={<PlusOutlined />}
+                onClick={() => setCreateModalOpen(true)}
+                style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
+              >
+                Tạo yêu cầu
+              </Button>
+            )}
           </Space>
         </div>
       </div>
@@ -606,14 +611,14 @@ export default function PermissionRequestsPage() {
         open={createModalOpen}
         onCancel={() => {
           setCreateModalOpen(false)
-          setCreateForm({ title: "", description: "", reason: "" })
+          setCreateForm({ title: "", description: "" })
         }}
         footer={[
           <Button
             key="cancel"
             onClick={() => {
               setCreateModalOpen(false)
-              setCreateForm({ title: "", description: "", reason: "" })
+              setCreateForm({ title: "", description: "" })
             }}
           >
             Hủy
@@ -649,17 +654,6 @@ export default function PermissionRequestsPage() {
               placeholder="Mô tả chi tiết yêu cầu mở quyền của bạn"
               value={createForm.description}
               onChange={(e) => setCreateForm({ ...createForm, description: e.target.value })}
-            />
-          </div>
-          <div>
-            <Text strong style={{ display: "block", marginBottom: 8 }}>
-              Lý do yêu cầu <span style={{ color: "#ff4d4f" }}>*</span>
-            </Text>
-            <TextArea
-              rows={3}
-              placeholder="Nhập lý do bạn cần mở quyền"
-              value={createForm.reason}
-              onChange={(e) => setCreateForm({ ...createForm, reason: e.target.value })}
             />
           </div>
           <div style={{ padding: 12, background: "#f6ffed", borderRadius: 8, border: "1px solid #b7eb8f" }}>
