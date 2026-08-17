@@ -37,28 +37,18 @@ export async function GET(request: NextRequest) {
 
     // Nếu không có documentId, trả về danh sách
     if (!documentId) {
-      // Lấy danh sách tài liệu kèm số lượng file đính kèm
-      const documents = await pool.request()
-        .query(`
-          SELECT 
-            md.DocumentID,
-            md.DocumentName,
-            md.CreatedDate,
-            md.UnitID,
-            md.StatusID,
-            s.Description AS StatusName,
-            md.Content,
-            COUNT(af.FileID) AS AttachmentCount
-          FROM MilitaryDocument md
-          LEFT JOIN [Status] s ON md.StatusID = s.StatusID
-          LEFT JOIN AttachmentFile af ON md.DocumentID = af.ReferenceID AND af.ReferenceType = 'MilitaryDocument'
-          GROUP BY md.DocumentID, md.DocumentName, md.CreatedDate, md.UnitID, md.StatusID, s.Description, md.Content
-          ORDER BY md.CreatedDate DESC
-        `);
+      const documents = result.recordset.map((row: any) => ({
+        DocumentID: row.DocumentID,
+        DocumentName: row.DocumentName,
+        CreatedDate: row.CreatedDate,
+        UnitID: row.UnitID,
+        StatusID: row.StatusID,
+        StatusName: row.Description,
+      }));
 
       return NextResponse.json({
         success: true,
-        data: documents.recordset,
+        data: documents,
       });
     }
 
@@ -108,20 +98,10 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/documents
  * Thêm tài liệu mới với file đính kèm
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    
-    // Check quyền: chỉ U002 được phép
-    const createdBy = String(formData.get('CreatedBy') || '');
-    if (createdBy !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền thêm tài liệu' },
-        { status: 403 }
-      );
-    }
     const pool = await getPool();
 
     const DocumentName = String(formData.get('DocumentName') || '');
@@ -238,21 +218,10 @@ export async function POST(request: NextRequest) {
 /**
  * PUT /api/documents
  * Cập nhật tài liệu với file đính kèm
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function PUT(request: NextRequest) {
   try {
     const formData = await request.formData();
-    
-    // Check quyền: chỉ U002 được phép
-    const modifiedBy = String(formData.get('ModifiedBy') || '');
-    if (modifiedBy !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền cập nhật tài liệu' },
-        { status: 403 }
-      );
-    }
-    
     const pool = await getPool();
 
     const DocumentID = String(formData.get('DocumentID') || '');
@@ -370,26 +339,16 @@ export async function PUT(request: NextRequest) {
 /**
  * DELETE /api/documents
  * Xóa tài liệu
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const documentId = searchParams.get('documentId') || '';
-    const userId = searchParams.get('userId') || '';
 
     if (!documentId) {
       return NextResponse.json(
         { success: false, message: 'Thiếu DocumentID' },
         { status: 400 }
-      );
-    }
-
-    // Check quyền: chỉ U002 được phép
-    if (userId !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền xóa tài liệu' },
-        { status: 403 }
       );
     }
 

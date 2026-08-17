@@ -1,18 +1,28 @@
 /**
  * File: components/document-detail-modal.tsx
- * Mô tả: Modal xem chi tiết tài liệu quân lực
- * Cập nhật: 2026-07-21
- * 
- * Hiển thị thông tin tài liệu và danh sách file đính kèm
+ * Mô tả: Modal xem chi tiết tài liệu quân lực - thiết kế lại
+ * Cập nhật: 2026-08-16
  */
 
 "use client"
 
 import { useAuth } from "@/components/auth-provider"
 import { useEffect, useState } from "react"
-import { App, Button, Descriptions, Empty, Modal, Space, Spin, Table, Typography } from "antd"
+import { App, Button, Empty, Modal, Space, Spin, Table, Typography, Tag, Upload, Divider } from "antd"
+const { Text } = Typography
 import type { ColumnsType } from "antd/es/table"
-import { DownloadOutlined, FileOutlined } from "@ant-design/icons"
+import {
+  DownloadOutlined,
+  FileOutlined,
+  FileWordOutlined,
+  FilePdfOutlined,
+  FileExcelOutlined,
+  UploadOutlined,
+  ClockCircleOutlined,
+  CheckCircleOutlined,
+  CloseCircleOutlined,
+  PaperClipOutlined,
+} from "@ant-design/icons"
 
 // ============================================================
 // INTERFACES
@@ -29,6 +39,7 @@ interface DocumentInfo {
   DocumentName: string
   CreatedDate: string
   UnitID: string
+  StatusID: string
   StatusName: string
   Content: string
 }
@@ -36,9 +47,46 @@ interface DocumentInfo {
 interface AttachmentFile {
   FileID: string
   FileName: string
-  FileSize: number
+  FileSize?: number
   UploadedDate: string
   FilePath: string
+}
+
+// ============================================================
+// HELPERS
+// ============================================================
+
+function getFileIcon(fileName?: string) {
+  const ext = fileName?.split('.').pop()?.toLowerCase()
+  switch (ext) {
+    case "pdf":
+      return <FilePdfOutlined style={{ color: "#ff4d4f", fontSize: 24 }} />
+    case "xlsx":
+    case "xls":
+      return <FileExcelOutlined style={{ color: "#52c41a", fontSize: 24 }} />
+    case "doc":
+    case "docx":
+      return <FileWordOutlined style={{ color: "#1890ff", fontSize: 24 }} />
+    default:
+      return <FileOutlined style={{ color: "#8c8c8c", fontSize: 24 }} />
+  }
+}
+
+function formatFileSize(bytes?: number) {
+  if (!bytes || bytes === 0) return ""
+  if (bytes < 1024) return `${bytes} B`
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+}
+
+function formatDate(dateStr: string) {
+  if (!dateStr) return "—"
+  try {
+    const date = new Date(dateStr)
+    return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()} ${String(date.getHours()).padStart(2, '0')}:${String(date.getMinutes()).padStart(2, '0')}`
+  } catch {
+    return dateStr
+  }
 }
 
 // ============================================================
@@ -46,7 +94,6 @@ interface AttachmentFile {
 // ============================================================
 
 export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetailModalProps) {
-
   const { user } = useAuth()
   const { message } = App.useApp()
   const [loading, setLoading] = useState(false)
@@ -55,7 +102,7 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
 
   // Load chi tiết tài liệu khi mở modal
   useEffect(() => {
-    if (open && documentId) {
+    if (open && documentId && user?.userId) {
       loadDocumentDetail()
     } else {
       setDocumentInfo(null)
@@ -64,50 +111,30 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
   }, [open, documentId])
 
   const loadDocumentDetail = async () => {
-  if (!documentId || !user?.userId) return
+    if (!documentId || !user?.userId) return
 
-  try {
-    setLoading(true)
-
-    const response = await fetch(
-      `/api/documents?userId=${user.userId}&documentId=${documentId}`
-    )
-
-    const result = await response.json()
-
-    if (result.success) {
-      setDocumentInfo(result.data.document)
-      setAttachments(result.data.attachments || [])
-    } else {
-      message.error(result.message || "Không tải được chi tiết tài liệu")
-    }
-
-  } catch (error) {
-    console.error("Lỗi khi tải chi tiết tài liệu:", error)
-    message.error("Lỗi kết nối server")
-  } finally {
-    setLoading(false)
-  }
-}
-
-  // Format kích thước file
-  const formatFileSize = (bytes: number) => {
-    if (!bytes || bytes === 0) return "—"
-    if (bytes < 1024) return `${bytes} B`
-    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
-    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
-  }
-
-  // Format ngày tháng
-  const formatDate = (dateStr: string) => {
-    if (!dateStr) return "—"
     try {
-      const date = new Date(dateStr)
-      return `${String(date.getDate()).padStart(2, '0')}/${String(date.getMonth() + 1).padStart(2, '0')}/${date.getFullYear()}`
-    } catch {
-      return dateStr
+      setLoading(true)
+      const response = await fetch(
+        `/api/documents?userId=${user.userId}&documentId=${documentId}`
+      )
+      const result = await response.json()
+
+      if (result.success) {
+        setDocumentInfo(result.data.document)
+        setAttachments(result.data.attachments || [])
+      } else {
+        message.error(result.message || "Không tải được chi tiết tài liệu")
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải chi tiết tài liệu:", error)
+      message.error("Lỗi kết nối server")
+    } finally {
+      setLoading(false)
     }
   }
+
+  const isExpired = documentInfo?.StatusName?.toLowerCase().includes('hết') || documentInfo?.StatusID === 'ST102'
 
   // Cột cho bảng file đính kèm
   const attachmentColumns: ColumnsType<AttachmentFile> = [
@@ -117,29 +144,29 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
       key: "FileName",
       render: (text: string) => (
         <Space>
-          <FileOutlined style={{ color: "#4b5320" }} />
-          <span>{text}</span>
+          {getFileIcon(text)}
+          <div>
+            <div style={{ fontWeight: 500 }}>{text}</div>
+          </div>
         </Space>
       ),
     },
-    // {
-    //   title: "Kích thước",
-    //   dataIndex: "FileSize",
-    //   key: "FileSize",
-    //   width: 120,
-    //   render: (size: number) => formatFileSize(size),
-    // },
     {
       title: "Ngày tải lên",
       dataIndex: "UploadedDate",
       key: "UploadedDate",
-      width: 140,
-      render: (date: string) => formatDate(date),
+      width: 160,
+      render: (date: string) => (
+        <Space direction="vertical" size={0}>
+          <Text style={{ fontSize: 13 }}>{formatDate(date)}</Text>
+        </Space>
+      ),
     },
     {
       title: "Thao tác",
       key: "actions",
-      width: 100,
+      width: 120,
+      align: "center",
       render: (_: any, record: AttachmentFile) => (
         <Button
           type="link"
@@ -157,71 +184,107 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
   return (
     <Modal
       open={open}
-      title={
-        <Space>
-          <FileOutlined style={{ color: "#4b5320" }} />
-          <span style={{ color: "#4b5320" }}>Chi tiết tài liệu quân lực</span>
-        </Space>
-      }
       onCancel={onClose}
-      footer={[
-        <Button key="close" onClick={onClose}>
-          Đóng
-        </Button>,
-      ]}
-      width={800}
-      destroyOnHidden
+      footer={null}
+      width={900}
+      centered
+      styles={{
+        body: { padding: 0 },
+      }}
     >
       <Spin spinning={loading}>
         {documentInfo ? (
-          <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
-            {/* Thông tin tài liệu */}
-            <Descriptions bordered column={2} size="small" style={{ marginBottom: 16 }}>
-              <Descriptions.Item label="Tên tài liệu" span={2}>
-                <Typography.Text strong style={{ fontSize: 15 }}>
-                  {documentInfo.DocumentName}
-                </Typography.Text>
-              </Descriptions.Item>
-              <Descriptions.Item label="Ngày tạo">
-                {formatDate(documentInfo.CreatedDate)}
-              </Descriptions.Item>
-              {/* <Descriptions.Item label="Đơn vị">
-                {documentInfo.UnitID || "—"}
-              </Descriptions.Item> */}
-              <Descriptions.Item label="Trạng thái" span={2}>
-                {documentInfo.StatusName || "—"}
-              </Descriptions.Item>
-              <Descriptions.Item label="Nội dung" span={2}>
-                <div style={{ whiteSpace: "pre-wrap", lineHeight: 1.6 }}>
-                  {documentInfo.Content || "—"}
+          <div style={{ maxHeight: "80vh", overflowY: "auto" }}>
+            {/* Header */}
+            <div
+              style={{
+                padding: "20px 24px",
+                borderBottom: "1px solid #f0f0f0",
+                background: "#fafafa",
+              }}
+            >
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 16 }}>
+                <div style={{ flex: 1 }}>
+                  <Typography.Title level={4} style={{ margin: 0, color: "#111827" }}>
+                    {documentInfo.DocumentName}
+                  </Typography.Title>
+                  <div style={{ marginTop: 8, display: "flex", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+                    <Space size={4}>
+                      <ClockCircleOutlined style={{ color: "#9ca3af", fontSize: 13 }} />
+                      <Text type="secondary" style={{ fontSize: 13 }}>
+                        Ngày tạo: {formatDate(documentInfo.CreatedDate)}
+                      </Text>
+                    </Space>
+                    <Tag
+                      color={isExpired ? "default" : "success"}
+                      icon={isExpired ? <CloseCircleOutlined /> : <CheckCircleOutlined />}
+                      style={{ fontSize: 12 }}
+                    >
+                      {isExpired ? "Hết hiệu lực" : "Hiệu lực"}
+                    </Tag>
+                  </div>
                 </div>
-              </Descriptions.Item>
-            </Descriptions>
+              </div>
+            </div>
 
-            {/* File đính kèm */}
-            <Typography.Title level={5} style={{ color: "#4b5320", marginBottom: 12 }}>
-              File đính kèm
-            </Typography.Title>
-            {attachments.length > 0 ? (
-              <Table<AttachmentFile>
-                rowKey="FileID"
-                columns={attachmentColumns}
-                dataSource={attachments}
-                pagination={false}
-                size="small"
-                bordered
-              />
-            ) : (
-              <Empty
-                description="Không có file đính kèm."
-                image={Empty.PRESENTED_IMAGE_SIMPLE}
-                style={{ margin: "20px 0" }}
-              />
-            )}
+            {/* Content */}
+            <div style={{ padding: "24px" }}>
+              {/* Tài liệu section */}
+              <div style={{ marginBottom: 24 }}>
+                <Typography.Title level={5} style={{ color: "#374151", marginBottom: 12 }}>
+                  Nội dung tài liệu
+                </Typography.Title>
+                <div
+                  style={{
+                    padding: "16px 20px",
+                    background: "#f9fafb",
+                    borderRadius: 8,
+                    border: "1px solid #e5e7eb",
+                    whiteSpace: "pre-wrap",
+                    lineHeight: 1.7,
+                    fontSize: 14,
+                    color: "#374151",
+                  }}
+                >
+                  {documentInfo.Content || "Không có nội dung"}
+                </div>
+              </div>
+
+              <Divider style={{ margin: "24px 0" }} />
+
+              {/* File đính kèm section */}
+              <div>
+                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 16 }}>
+                  <Typography.Title level={5} style={{ color: "#374151", margin: 0 }}>
+                    <PaperClipOutlined style={{ marginRight: 8 }} />
+                    Tệp đính kèm ({attachments.length})
+                  </Typography.Title>
+                </div>
+
+                {attachments.length > 0 ? (
+                  <Table<AttachmentFile>
+                    rowKey="FileID"
+                    columns={attachmentColumns}
+                    dataSource={attachments}
+                    pagination={false}
+                    size="middle"
+                    style={{ borderRadius: 8, overflow: "hidden" }}
+                  />
+                ) : (
+                  <Empty
+                    description="Không có file đính kèm"
+                    image={Empty.PRESENTED_IMAGE_SIMPLE}
+                    style={{ margin: "20px 0" }}
+                  />
+                )}
+              </div>
+            </div>
           </div>
         ) : (
           !loading && (
-            <Empty description="Không có dữ liệu." />
+            <div style={{ padding: 60 }}>
+              <Empty description="Không tìm thấy tài liệu" />
+            </div>
           )
         )}
       </Spin>

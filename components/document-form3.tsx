@@ -165,8 +165,6 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
       formData.append('UnitID', user?.unitId || '')
       formData.append('StatusID', values.StatusID || 'ST101')
       formData.append('Content', values.Content || '')
-      formData.append('CreatedBy', user?.userId || '')
-      formData.append('ModifiedBy', user?.userId || '')
 
       // Thêm file mới
       fileList.forEach(file => {

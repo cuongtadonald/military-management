@@ -97,9 +97,6 @@ export default function DocumentsPage() {
   const { message } = App.useApp()
   const { user, isLoading } = useAuth()
 
-  // Check quyền: chỉ U002 được CRUD
-  const canManage = user?.userId === 'U002'
-
   // Filter state
   const [searchText, setSearchText] = useState("")
   const [status, setStatus] = useState("")
@@ -156,11 +153,6 @@ export default function DocumentsPage() {
 
   // Mở modal sửa
   const handleEdit = async (record: Document) => {
-    if (!canManage) {
-      message.error('Bạn không có quyền chỉnh sửa tài liệu')
-      return
-    }
-    
     try {
       const response = await fetch(`/api/documents?userId=${user?.userId}&documentId=${record.DocumentID}`)
       const result = await response.json()
@@ -182,10 +174,6 @@ export default function DocumentsPage() {
 
   // Mở modal thêm mới
   const handleAdd = () => {
-    if (!canManage) {
-      message.error('Bạn không có quyền thêm tài liệu')
-      return
-    }
     setEditingDocument(null)
     setFormModalOpen(true)
   }
@@ -200,7 +188,7 @@ export default function DocumentsPage() {
       cancelText: 'Hủy',
       onOk: async () => {
         try {
-          const response = await fetch(`/api/documents?documentId=${record.DocumentID}&userId=${user?.userId}`, {
+          const response = await fetch(`/api/documents?documentId=${record.DocumentID}`, {
             method: 'DELETE',
           })
           const result = await response.json()
@@ -324,27 +312,23 @@ export default function DocumentsPage() {
       align: "center",
       render: (_, record) => (
         <Space size={4}>
-          {canManage && (
-            <>
-              <Tooltip title="Chỉnh sửa">
-                <Button 
-                  type="text" 
-                  size="small" 
-                  icon={<EditOutlined style={{ color: '#52c41a' }} />} 
-                  onClick={(e) => { e.stopPropagation(); handleEdit(record) }} 
-                />
-              </Tooltip>
-              <Tooltip title="Xóa">
-                <Button 
-                  type="text" 
-                  size="small" 
-                  danger 
-                  icon={<DeleteOutlined />} 
-                  onClick={(e) => { e.stopPropagation(); handleDelete(record) }} 
-                />
-              </Tooltip>
-            </>
-          )}
+          <Tooltip title="Chỉnh sửa">
+            <Button 
+              type="text" 
+              size="small" 
+              icon={<EditOutlined style={{ color: '#52c41a' }} />} 
+              onClick={(e) => { e.stopPropagation(); handleEdit(record) }} 
+            />
+          </Tooltip>
+          <Tooltip title="Xóa">
+            <Button 
+              type="text" 
+              size="small" 
+              danger 
+              icon={<DeleteOutlined />} 
+              onClick={(e) => { e.stopPropagation(); handleDelete(record) }} 
+            />
+          </Tooltip>
         </Space>
       ),
     },
@@ -394,16 +378,14 @@ export default function DocumentsPage() {
           <Button icon={<ReloadOutlined />} onClick={handleReset}>
             Đặt lại
           </Button>
-          {canManage && (
-            <Button
-              type="primary"
-              icon={<PlusOutlined />}
-              onClick={handleAdd}
-              style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
-            >
-              Thêm tài liệu
-            </Button>
-          )}
+          <Button
+            type="primary"
+            icon={<PlusOutlined />}
+            onClick={handleAdd}
+            style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
+          >
+            Thêm tài liệu
+          </Button>
         </Space>
       </Card>
 

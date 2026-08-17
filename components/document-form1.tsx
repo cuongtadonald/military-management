@@ -1,28 +1,25 @@
 /**
  * File: components/document-form.tsx
- * Mô tả: Form Thêm/Sửa tài liệu quân lực - gửi formData
- * Cập nhật: 2026-08-16
+ * Mô tả: Form Thêm/Sửa tài liệu quân lực
+ * Cập nhật: 2026-07-21
+ * 
+ * Form modal với các trường:
+ * - Tên tài liệu
+ * - Đơn vị
+ * - Trạng thái
+ * - Nội dung
+ * - File đính kèm (upload nhiều file)
  */
 
 "use client"
 
 import type { UploadFile } from "antd"
 import { useEffect, useState } from "react"
-import { App, Button, Col, Form, Input, Modal, Row, Select, Upload, Space, Tag, Popconfirm, Typography, Divider } from "antd"
-import {
-  DeleteOutlined,
-  UploadOutlined,
-  FileOutlined,
-  FileWordOutlined,
-  FilePdfOutlined,
-  FileExcelOutlined,
-  DownloadOutlined,
-  InboxOutlined,
-} from "@ant-design/icons"
+import { App, Button, Col, Form, Input, Modal, Row, Select, Upload, Space, Tag, Popconfirm, Typography } from "antd"
+import { PlusOutlined, DeleteOutlined, UploadOutlined, FileOutlined, DownloadOutlined } from "@ant-design/icons"
 import { useAuth } from "@/components/auth-provider"
 
 const { TextArea } = Input
-const { Dragger } = Upload
 
 // ============================================================
 // INTERFACES
@@ -47,40 +44,32 @@ interface DocumentData {
 }
 
 interface AttachmentFile {
-  FileID: string
-  FileName: string
-  FilePath: string
-  UploadedDate: string
+  FileID:string
+  ReferenceType:string
+  FileName:string
+  FilePath:string
+  UploadedDate:string
+}
+
+interface UploadedFile {
+  uid: string
+  name: string
+  size?: number
+  status?: string
+  url?: string
+  file?: File
 }
 
 // ============================================================
-// CONSTANTS
+// STATIC OPTIONS
 // ============================================================
 
 const STATUS_OPTIONS = [
-  { value: "ST101", label: "Hiệu lực" },
-  { value: "ST102", label: "Hết hiệu lực" },
+  { value: "ST101", label: "DRAFT - Tài liệu đang sử dụng" },
+  { value: "ST102", label: "PENDING - Tài liệu hết hiệu lực" },
+  { value: "ST103", label: "APPROVED - Tài liệu lưu trữ" },
+  { value: "ST104", label: "REJECTED - Tài liệu bị hủy" },
 ]
-
-// ============================================================
-// HELPERS
-// ============================================================
-
-function getFileIcon(fileName?: string) {
-  const ext = fileName?.split('.').pop()?.toLowerCase()
-  switch (ext) {
-    case "pdf":
-      return <FilePdfOutlined style={{ color: "#ff4d4f" }} />
-    case "xlsx":
-    case "xls":
-      return <FileExcelOutlined style={{ color: "#52c41a" }} />
-    case "doc":
-    case "docx":
-      return <FileWordOutlined style={{ color: "#1890ff" }} />
-    default:
-      return <FileOutlined style={{ color: "#8c8c8c" }} />
-  }
-}
 
 // ============================================================
 // MAIN COMPONENT
@@ -92,12 +81,41 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
   
+  // Dropdown data
+  const [unitTree, setUnitTree] = useState<any[]>([])
+  
   // File uploads
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [existingFiles, setExistingFiles] = useState<AttachmentFile[]>([])
   const [deletedFileIds, setDeletedFileIds] = useState<string[]>([])
   
   const isEditMode = !!documentProp
+
+  // ============================================================
+  // LOAD DROPDOWN DATA
+  // ============================================================
+
+  useEffect(() => {
+    if (open && user?.userId) {
+      loadUnitTree()
+    }
+  }, [open, user])
+
+  const loadUnitTree = async () => {
+    const userId = user?.userId
+    if (!userId) return
+
+    try {
+      const response = await fetch(`/api/units?userId=${userId}`)
+      const result = await response.json()
+      
+      if (result.success) {
+        setUnitTree(result.data || [])
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải đơn vị:", error)
+    }
+  }
 
   // ============================================================
   // FORM INIT
@@ -109,14 +127,13 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
         // Mode Sửa - fill data
         form.setFieldsValue({
           DocumentName: documentProp.DocumentName,
+          UnitID: documentProp.UnitID,
           StatusID: documentProp.StatusID || 'ST101',
           Content: documentProp.Content || '',
         })
         
         // Load file đính kèm hiện có
-        if (documentProp.attachments) {
-          setExistingFiles(documentProp.attachments)
-        }
+        loadDocumentDetail(documentProp.DocumentID)
       } else {
         // Mode Thêm - reset form
         form.resetFields()
@@ -126,6 +143,19 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
       }
     }
   }, [open, documentProp, form])
+
+  const loadDocumentDetail = async (documentId: string) => {
+    try {
+      const response = await fetch(`/api/documents?documentId=${documentId}`)
+      const result = await response.json()
+
+      if (result.success) {
+        setExistingFiles(result.data.attachments || [])
+      }
+    } catch (error) {
+      console.error("Lỗi khi tải chi tiết tài liệu:", error)
+    }
+  }
 
   // ============================================================
   // FILE HANDLING
@@ -141,6 +171,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
   }
 
   const handleDownloadFile = (file: AttachmentFile) => {
+    // Tạo link download
     const link = document.createElement('a')
     link.href = file.FilePath
     link.download = file.FileName
@@ -149,6 +180,14 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
     link.click()
     document.body.removeChild(link)
   }
+
+  // Format kích thước file
+  // const formatFileSize = (bytes: number) => {
+  //   if (!bytes || bytes === 0) return ""
+  //   if (bytes < 1024) return `${bytes} B`
+  //   if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`
+  //   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`
+  // }
 
   // ============================================================
   // SUBMIT
@@ -159,37 +198,44 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
       const values = await form.validateFields()
       setLoading(true)
 
-      // Tạo FormData
-      const formData = new FormData()
-      formData.append('DocumentName', values.DocumentName)
-      formData.append('UnitID', user?.unitId || '')
-      formData.append('StatusID', values.StatusID || 'ST101')
-      formData.append('Content', values.Content || '')
-      formData.append('CreatedBy', user?.userId || '')
-      formData.append('ModifiedBy', user?.userId || '')
-
-      // Thêm file mới
-      fileList.forEach(file => {
-        if (file.originFileObj) {
-          formData.append('files', file.originFileObj)
-        }
-      })
+      // Chuẩn bị danh sách file mới upload
+      const newAttachments = fileList
+        .filter(f => f.originFileObj)
+        .map(f => ({
+        FileName:f.name,
+        FilePath:''
+        }))
 
       let response
       if (isEditMode && documentProp) {
         // Cập nhật
-        formData.append('DocumentID', documentProp.DocumentID)
-        formData.append('deletedFileIds', deletedFileIds.join(','))
-        
         response = await fetch('/api/documents', {
           method: 'PUT',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            DocumentID: documentProp.DocumentID,
+            DocumentName: values.DocumentName,
+            UnitID: values.UnitID,
+            StatusID: values.StatusID || 'ST101',
+            Content: values.Content || '',
+            ModifiedBy: user?.userId,
+            newAttachments,
+            deletedFileIds,
+          }),
         })
       } else {
         // Thêm mới
         response = await fetch('/api/documents', {
           method: 'POST',
-          body: formData,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            DocumentName: values.DocumentName,
+            UnitID: values.UnitID,
+            StatusID: values.StatusID || 'Chọn trạng thái',
+            Content: values.Content || '',
+            CreatedBy: user?.userId,
+            attachments: newAttachments,
+          }),
         })
       }
 
@@ -226,76 +272,80 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
     <Modal
       title={
         <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-          <FileOutlined style={{ color: "#3a4d2e", fontSize: 20 }} />
-          <span style={{ color: "#3a4d2e", fontSize: 18, fontWeight: 600 }}>
-            {isEditMode ? "Cập nhật tài liệu" : "Thêm tài liệu mới"}
+          <FileOutlined style={{ color: "#4b5320" }} />
+          <span style={{ color: "#4b5320" }}>
+            {isEditMode ? "Cập nhật tài liệu quân lực" : "Thêm tài liệu quân lực"}
           </span>
         </div>
       }
       open={open}
       onCancel={onClose}
       width={700}
-      centered
       footer={[
-        <Button key="cancel" onClick={onClose} size="large">
-          Hủy
-        </Button>,
-        <Button
-          key="submit"
-          type="primary"
-          onClick={handleSubmit}
+        <Button key="cancel" onClick={onClose}>Hủy</Button>,
+        <Button 
+          key="submit" 
+          type="primary" 
+          onClick={handleSubmit} 
           loading={loading}
-          size="large"
-          style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
+          style={{ background: "#4b5320", borderColor: "#4b5320" }}
         >
           {isEditMode ? "Cập nhật" : "Thêm mới"}
         </Button>,
       ]}
-      styles={{ body: { padding: "20px 24px" } }}
+      styles={{ body: { padding: "16px 24px" } }}
+      destroyOnHidden
     >
-      <div style={{ maxHeight: "65vh", overflowY: "auto" }}>
+      <div style={{ maxHeight: "60vh", overflowY: "auto" }}>
         <Form
           form={form}
           layout="vertical"
           initialValues={{
-            StatusID: "ST101",
+            StatusID: "Chọn trạng thái",
           }}
         >
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item
-                name="DocumentName"
-                label={
-                  <span style={{ fontWeight: 500 }}>
-                    Tên tài liệu <span style={{ color: "#ff4d4f" }}>*</span>
-                  </span>
-                }
+              <Form.Item 
+                name="DocumentName" 
+                label="Tên tài liệu" 
                 rules={[{ required: true, message: "Vui lòng nhập tên tài liệu" }]}
               >
-                <Input placeholder="Nhập tên tài liệu" size="large" />
+                <Input placeholder="Nhập tên tài liệu" />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={16}>
-            <Col span={12}>
-              <Form.Item
-                name="StatusID"
-                label={<span style={{ fontWeight: 500 }}>Trạng thái</span>}
+            {/* <Col span={12}>
+              <Form.Item 
+                name="UnitID" 
+                label="Đơn vị" 
+                rules={[{ required: true, message: "Chọn đơn vị" }]}
               >
-                <Select options={STATUS_OPTIONS} placeholder="Chọn trạng thái" size="large" />
+                <Select
+                  placeholder="Chọn đơn vị"
+                  showSearch
+                  optionFilterProp="label"
+                  options={unitTree.map((u: any) => ({
+                    value: u.UnitID,
+                    label: u.FullPathName || u.UnitName,
+                  }))}
+                />
+              </Form.Item>
+            </Col> */}
+            <Col span={12}>
+              <Form.Item name="StatusID" label="Trạng thái">
+                <Select options={STATUS_OPTIONS} placeholder="Chọn trạng thái" />
               </Form.Item>
             </Col>
           </Row>
 
           <Row gutter={16}>
             <Col span={24}>
-              <Form.Item
-                name="Content"
-                label={<span style={{ fontWeight: 500 }}>Nội dung</span>}
-              >
-                <TextArea
-                  rows={6}
+              <Form.Item name="Content" label="Nội dung">
+                <TextArea 
+                  rows={4} 
                   placeholder="Nhập nội dung tài liệu"
                   style={{ resize: "vertical" }}
                 />
@@ -303,39 +353,40 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
             </Col>
           </Row>
 
-          <Divider />
-
           {/* File đính kèm */}
-          <div>
-            <Typography.Text strong style={{ display: "block", marginBottom: 12, fontSize: 15 }}>
-              Tệp đính kèm
+          <div style={{ marginBottom: 16 }}>
+            <Typography.Text strong style={{ display: "block", marginBottom: 8 }}>
+              File đính kèm
             </Typography.Text>
 
             {/* File hiện có (chỉ hiển thị khi sửa) */}
             {existingFiles.length > 0 && (
-              <div style={{ marginBottom: 16 }}>
-                <Typography.Text type="secondary" style={{ fontSize: 13, display: "block", marginBottom: 8 }}>
+              <div style={{ marginBottom: 12 }}>
+                <Typography.Text type="secondary" style={{ fontSize: 12 }}>
                   File đã tải lên:
                 </Typography.Text>
-                <Space direction="vertical" style={{ width: "100%" }} size={8}>
+                <Space direction="vertical" style={{ width: "100%", marginTop: 8 }}>
                   {existingFiles.map(file => (
-                    <div
+                    <div 
                       key={file.FileID}
                       style={{
                         display: "flex",
                         alignItems: "center",
                         justifyContent: "space-between",
-                        padding: "10px 14px",
-                        background: "#f9fafb",
-                        borderRadius: 8,
-                        border: "1px solid #e5e7eb",
+                        padding: "8px 12px",
+                        background: "#fafafa",
+                        borderRadius: 6,
+                        border: "1px solid #d9d9d9",
                       }}
                     >
                       <Space>
-                        {getFileIcon(file.FileName)}
-                        <div>
-                          <div style={{ fontWeight: 500 }}>{file.FileName}</div>
-                        </div>
+                        <FileOutlined style={{ color: "#4b5320" }} />
+                        <span>{file.FileName}</span>
+                        {/* {file.FileSize > 0 && (
+                          <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                            ({formatFileSize(file.FileSize)})
+                          </Typography.Text>
+                        )} */}
                       </Space>
                       <Space>
                         <Button
@@ -348,18 +399,19 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
                         </Button>
                         <Popconfirm
                           title="Xóa file này?"
-                          description="File sẽ bị xóa vĩnh viễn"
                           onConfirm={() => handleRemoveExistingFile(file.FileID)}
                           okText="Xóa"
                           cancelText="Hủy"
                           okButtonProps={{ danger: true }}
                         >
                           <Button
-                            type="text"
+                            type="link"
                             danger
                             icon={<DeleteOutlined />}
                             size="small"
-                          />
+                          >
+                            Xóa
+                          </Button>
                         </Popconfirm>
                       </Space>
                     </div>
@@ -369,24 +421,22 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
             )}
 
             {/* Upload file mới */}
-            <Dragger
+            <Upload
               multiple
               fileList={fileList}
               onChange={handleFileChange}
-              beforeUpload={() => false}
-              accept=".pdf,.doc,.docx,.xls,.xlsx"
-              style={{ padding: "20px 0" }}
+              beforeUpload={() => false} // Không tự động upload
             >
-              <p className="ant-upload-drag-icon">
-                <InboxOutlined style={{ fontSize: 40, color: "#3a4d2e" }} />
-              </p>
-              <p className="ant-upload-text" style={{ fontSize: 15, fontWeight: 500 }}>
-                Kéo thả file vào đây hoặc click để chọn
-              </p>
-              <p className="ant-upload-hint">
-                Hỗ trợ: PDF, Word, Excel. Dung lượng tối đa 50MB/tệp
-              </p>
-            </Dragger>
+              <Button icon={<UploadOutlined />}>
+                Chọn file
+              </Button>
+            </Upload>
+
+            {existingFiles.length === 0 && fileList.length === 0 && (
+              <Typography.Text type="secondary" style={{ fontSize: 12, marginTop: 8 }}>
+                Chưa có file đính kèm.
+              </Typography.Text>
+            )}
           </div>
         </Form>
       </div>

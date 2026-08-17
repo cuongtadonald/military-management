@@ -1,6 +1,6 @@
 /**
  * File: components/document-form.tsx
- * Mô tả: Form Thêm/Sửa tài liệu quân lực - gửi formData
+ * Mô tả: Form Thêm/Sửa tài liệu quân lực - thiết kế lại
  * Cập nhật: 2026-08-16
  */
 
@@ -91,12 +91,12 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
   const { user } = useAuth()
   const [form] = Form.useForm()
   const [loading, setLoading] = useState(false)
-  
+
   // File uploads
   const [fileList, setFileList] = useState<UploadFile[]>([])
   const [existingFiles, setExistingFiles] = useState<AttachmentFile[]>([])
   const [deletedFileIds, setDeletedFileIds] = useState<string[]>([])
-  
+
   const isEditMode = !!documentProp
 
   // ============================================================
@@ -112,7 +112,7 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
           StatusID: documentProp.StatusID || 'ST101',
           Content: documentProp.Content || '',
         })
-        
+
         // Load file đính kèm hiện có
         if (documentProp.attachments) {
           setExistingFiles(documentProp.attachments)
@@ -159,36 +159,56 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
       const values = await form.validateFields()
       setLoading(true)
 
-      // Tạo FormData
+      let response: Response
       const formData = new FormData()
-      formData.append('DocumentName', values.DocumentName)
-      formData.append('UnitID', user?.unitId || '')
-      formData.append('StatusID', values.StatusID || 'ST101')
-      formData.append('Content', values.Content || '')
-      formData.append('CreatedBy', user?.userId || '')
-      formData.append('ModifiedBy', user?.userId || '')
 
-      // Thêm file mới
-      fileList.forEach(file => {
-        if (file.originFileObj) {
-          formData.append('files', file.originFileObj)
-        }
-      })
-
-      let response
       if (isEditMode && documentProp) {
-        // Cập nhật
-        formData.append('DocumentID', documentProp.DocumentID)
-        formData.append('deletedFileIds', deletedFileIds.join(','))
-        
-        response = await fetch('/api/documents', {
-          method: 'PUT',
+        // ============================
+        // CẬP NHẬT TÀI LIỆU
+        // ============================
+        formData.append("DocumentID", documentProp.DocumentID)
+        formData.append("DocumentName", values.DocumentName)
+        formData.append("UnitID", values.UnitID || user?.unitId || "")
+        formData.append("StatusID", values.StatusID || "ST101")
+        formData.append("Content", values.Content || "")
+        formData.append("ModifiedBy", user?.userId || "")
+
+        // Các file mới
+        fileList.forEach((file) => {
+          if (file.originFileObj) {
+            formData.append("files", file.originFileObj)
+          }
+        })
+
+        // ID các file cần xóa
+        formData.append(
+          "deletedFileIds",
+          JSON.stringify(deletedFileIds)
+        )
+
+        response = await fetch("/api/documents", {
+          method: "PUT",
           body: formData,
         })
       } else {
-        // Thêm mới
-        response = await fetch('/api/documents', {
-          method: 'POST',
+        // ============================
+        // THÊM TÀI LIỆU MỚI
+        // ============================
+        formData.append("DocumentName", values.DocumentName)
+        formData.append("UnitID", user?.unitId || "")
+        formData.append("StatusID", values.StatusID || "ST101")
+        formData.append("Content", values.Content || "")
+        formData.append("CreatedBy", user?.userId || "")
+
+        // Thêm các file
+        fileList.forEach((file) => {
+          if (file.originFileObj) {
+            formData.append("files", file.originFileObj)
+          }
+        })
+
+        response = await fetch("/api/documents", {
+          method: "POST",
           body: formData,
         })
       }
@@ -196,19 +216,29 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
       const result = await response.json()
 
       if (result.success) {
-        message.success(isEditMode ? "Đã cập nhật tài liệu" : "Đã thêm tài liệu mới")
+        message.success(
+          isEditMode
+            ? "Đã cập nhật tài liệu"
+            : "Đã thêm tài liệu mới"
+        )
+
         form.resetFields()
         setFileList([])
         setExistingFiles([])
         setDeletedFileIds([])
+
         onSuccess?.()
         onClose()
       } else {
-        message.error(result.message || "Có lỗi xảy ra")
+        message.error(
+          result.message || "Có lỗi xảy ra"
+        )
       }
     } catch (error: any) {
       if (error.errorFields) {
-        message.error("Vui lòng điền đầy đủ thông tin bắt buộc")
+        message.error(
+          "Vui lòng điền đầy đủ thông tin bắt buộc"
+        )
       } else {
         console.error("Lỗi:", error)
         message.error("Có lỗi xảy ra")

@@ -108,20 +108,10 @@ export async function GET(request: NextRequest) {
 /**
  * POST /api/documents
  * Thêm tài liệu mới với file đính kèm
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function POST(request: NextRequest) {
   try {
     const formData = await request.formData();
-    
-    // Check quyền: chỉ U002 được phép
-    const createdBy = String(formData.get('CreatedBy') || '');
-    if (createdBy !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền thêm tài liệu' },
-        { status: 403 }
-      );
-    }
     const pool = await getPool();
 
     const DocumentName = String(formData.get('DocumentName') || '');
@@ -238,21 +228,10 @@ export async function POST(request: NextRequest) {
 /**
  * PUT /api/documents
  * Cập nhật tài liệu với file đính kèm
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function PUT(request: NextRequest) {
   try {
     const formData = await request.formData();
-    
-    // Check quyền: chỉ U002 được phép
-    const modifiedBy = String(formData.get('ModifiedBy') || '');
-    if (modifiedBy !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền cập nhật tài liệu' },
-        { status: 403 }
-      );
-    }
-    
     const pool = await getPool();
 
     const DocumentID = String(formData.get('DocumentID') || '');
@@ -370,26 +349,16 @@ export async function PUT(request: NextRequest) {
 /**
  * DELETE /api/documents
  * Xóa tài liệu
- * Chỉ user U002 (Sư đoàn) có quyền
  */
 export async function DELETE(request: NextRequest) {
   try {
     const { searchParams } = new URL(request.url);
     const documentId = searchParams.get('documentId') || '';
-    const userId = searchParams.get('userId') || '';
 
     if (!documentId) {
       return NextResponse.json(
         { success: false, message: 'Thiếu DocumentID' },
         { status: 400 }
-      );
-    }
-
-    // Check quyền: chỉ U002 được phép
-    if (userId !== 'U002') {
-      return NextResponse.json(
-        { success: false, message: 'Bạn không có quyền xóa tài liệu' },
-        { status: 403 }
       );
     }
 
