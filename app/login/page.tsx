@@ -594,7 +594,7 @@ export default function LoginPage() {
           </div>
           <div>
             <div style={{ color: "#fff", fontSize: 12, fontWeight: 600 }}>Liên hệ quản trị</div>
-            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>quantri@hsqn.mil.vn</div>
+            <div style={{ color: "rgba(255,255,255,0.6)", fontSize: 11 }}>quantri@tvc.sd5.vn</div>
           </div>
         </div>
       </div>

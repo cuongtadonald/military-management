@@ -5,11 +5,15 @@ import { AuthProvider } from "@/components/auth-provider"
 import { ChangeLogProvider } from "@/lib/change-log"
 
 export const metadata: Metadata = {
+  title: "Quản Lý Quân Nhân",
+  description: "Ứng dụng quản lý quân nhân",
+
+  manifest: "/manifest.json",
+
   icons: {
-    icon: "/logovn.jpg",
-    apple: "/logovn.jpg",
+    icon: "/icons/icon-192.png",
   },
-}
+};
 
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (

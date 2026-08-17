@@ -46,15 +46,15 @@ export function AppHeader({ onBellClick }: AppHeaderProps) {
       label: 'Trang chủ',
       onClick: () => router.push('/')
     },
-    ...(canManagePermissions() ? [{
-      key: 'permissions',
-      icon: <SettingOutlined />,
-      label: 'Quản lý quyền',
-      onClick: () => router.push('/permissions')
-    }] : []),
-    {
-      type: 'divider'
-    },
+    // ...(canManagePermissions() ? [{
+    //   key: 'permissions',
+    //   icon: <SettingOutlined />,
+    //   label: 'Quản lý quyền',
+    //   onClick: () => router.push('/permissions')
+    // }] : []),
+    // {
+    //   type: 'divider'
+    // },
     {
       key: 'logout',
       icon: <LogoutOutlined />,

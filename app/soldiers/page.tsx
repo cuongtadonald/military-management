@@ -365,7 +365,7 @@ export default function SoldierListPage() {
         </div>
       ),
     },
-    { title: "Mã chiến sĩ", dataIndex: "SoldierID", key: "SoldierID", width: 90, render: (id: string) => <span style={{ color: "#666", fontSize: 13 }}>{id}</span> },
+    { title: "Mã quân nhân", dataIndex: "SoldierID", key: "SoldierID", width: 90, render: (id: string) => <span style={{ color: "#666", fontSize: 13 }}>{id}</span> },
     {
       title: "Cấp bậc", dataIndex: "RankName", key: "RankName", width: 110,
       render: (rank: string) => (
@@ -480,7 +480,7 @@ export default function SoldierListPage() {
         <Row gutter={[12, 12]} align="middle">
           <Col flex="auto">
             <Input
-              placeholder="Tìm theo tên, CCCD, mã chiến sĩ..."
+              placeholder="Tìm theo tên, CCCD, mã quân nhân..."
               prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
               value={search} onChange={(e) => setSearch(e.target.value)}
               style={{ borderRadius: 8, maxWidth: 300 }}

@@ -57,12 +57,14 @@ const ETHNICITY_OPTIONS = [
 ]
 
 const EDUCATION_OPTIONS = [
-  { value: "THPT", label: "THPT" },
-  { value: "Trung cấp", label: "Trung cấp" },
-  { value: "Cao đẳng", label: "Cao đẳng" },
-  { value: "Đại học", label: "Đại học" },
-  { value: "Thạc sĩ", label: "Thạc sĩ" },
-  { value: "Tiến sĩ", label: "Tiến sĩ" },
+  { value: "9/12", label: "9/12" },
+  { value: "10/12", label: "10/12" },
+  { value: "11/12", label: "11/12" },
+  { value: "12/12", label: "12/12" },
+  // { value: "Cao đẳng", label: "Cao đẳng" },
+  // { value: "Đại học", label: "Đại học" },
+  // { value: "Thạc sĩ", label: "Thạc sĩ" },
+  // { value: "Tiến sĩ", label: "Tiến sĩ" },
 ]
 
 const POLITICAL_LEVEL_OPTIONS = [
