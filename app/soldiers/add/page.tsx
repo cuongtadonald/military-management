@@ -245,6 +245,7 @@ export default function AddSoldierPage() {
 
       if (unitsData.success) {
         setUnitOptions(unitsData.data.map((u: any) => ({ value: u.UnitID, label: u.FullPathName })))
+        console.log(unitsData.data.map);
       }
     } catch (error) {
       console.error("Lỗi khi tải dữ liệu:", error)

@@ -56,72 +56,70 @@ export async function GET(request: NextRequest) {
     }
 
     if (unitId) {
-      /*
-       * Chọn đơn vị cha => lấy quân nhân của chính đơn vị đó
-       * + tất cả đơn vị con ở mọi cấp.
-       *
-       * Không dùng UnitHierarchyPath trả về từ Stored Procedure để
-       * so sánh vì format path của SP có thể khác OrganizationUnit.
-       * Lấy danh sách UnitID descendants trực tiếp từ OrganizationUnit,
-       * sau đó lọc kết quả của Stored Procedure theo UnitID.
-       */
-      let descendantResult;
+      // Khi chọn một đơn vị, phải lấy cả quân nhân thuộc toàn bộ
+      // các đơn vị con bên dưới đơn vị đó.
+      //
+      // Ví dụ:
+      //   F00001/
+      //   F00001/E00001/
+      //   F00001/E00001/D00001/
+      //
+      // Nếu chọn F00001 thì tất cả các path bắt đầu bằng
+      // "F00001/" đều thuộc phạm vi được chọn.
+      const unitResult = await pool.request()
+        .input('unitId', sql.VarChar, unitId)
+        .query(`
+          SELECT
+            UnitID,
+            HierarchyPath
+          FROM OrganizationUnit
+          WHERE UnitID = @unitId
+        `);
 
-      if (unitPath) {
-        const normalizedPath = unitPath.endsWith("/")
-          ? unitPath
-          : `${unitPath}/`;
+      const selectedHierarchyPath = String(
+        unitResult.recordset[0]?.HierarchyPath || ''
+      ).trim();
 
-        descendantResult = await pool.request()
-          .input("unitPathPrefix", sql.VarChar, `${normalizedPath}%`)
-          .query(`
-            SELECT UnitID
-            FROM OrganizationUnit
-            WHERE HierarchyPath LIKE @unitPathPrefix
-          `);
-      } else {
-        const unitResult = await pool.request()
-          .input("unitId", sql.VarChar, unitId)
-          .query(`
-            SELECT HierarchyPath
-            FROM OrganizationUnit
-            WHERE UnitID = @unitId
-          `);
-
-        const selectedHierarchyPath =
-          String(unitResult.recordset[0]?.HierarchyPath || "").trim();
-
-        if (selectedHierarchyPath) {
-          const normalizedPath = selectedHierarchyPath.endsWith("/")
+      if (selectedHierarchyPath) {
+        // Chuẩn hóa để tránh trường hợp path trong DB không có
+        // hoặc có dấu "/" cuối chuỗi.
+        const normalizedSelectedPath =
+          selectedHierarchyPath.endsWith('/')
             ? selectedHierarchyPath
             : `${selectedHierarchyPath}/`;
 
-          descendantResult = await pool.request()
-            .input("unitPathPrefix", sql.VarChar, `${normalizedPath}%`)
-            .query(`
-              SELECT UnitID
-              FROM OrganizationUnit
-              WHERE HierarchyPath LIKE @unitPathPrefix
-            `);
-        } else {
-          descendantResult = { recordset: [{ UnitID: unitId }] };
-        }
+        mappedData = mappedData.filter((row: any) => {
+          const rowUnitId = String(row.UnitID || '').trim();
+          const rowHierarchyPath = String(
+            row.UnitHierarchyPath || ''
+          ).trim();
+
+          // Quân nhân thuộc chính đơn vị được chọn.
+          if (rowUnitId === unitId) return true;
+
+          // Quân nhân thuộc bất kỳ đơn vị con nào.
+          if (
+            rowHierarchyPath &&
+            (
+              rowHierarchyPath === normalizedSelectedPath ||
+              rowHierarchyPath.startsWith(normalizedSelectedPath)
+            )
+          ) {
+            return true;
+          }
+
+          return false;
+        });
+      } else {
+        // Nếu không tìm được HierarchyPath của đơn vị được chọn,
+        // vẫn giữ hành vi an toàn: chỉ lấy đúng đơn vị đó.
+        mappedData = mappedData.filter(
+          (row: any) => String(row.UnitID || '').trim() === unitId
+        );
       }
-
-      const allowedUnitIds = new Set<string>(
-        descendantResult.recordset.map((row: any) =>
-          String(row.UnitID || "").trim()
-        )
-      );
-
-      allowedUnitIds.add(unitId);
-
-      mappedData = mappedData.filter((row: any) =>
-        allowedUnitIds.has(String(row.UnitID || "").trim())
-      );
     }
 
-    if (unitPath && !unitId) {
+    if (unitPath) {
       const unitPathLower = unitPath.toLowerCase();
       const parts = unitPath.split(',').map((part) => part.trim()).filter(Boolean);
       const hierarchySearch = parts.length ? `/${parts.join('/').toLowerCase()}/` : '';

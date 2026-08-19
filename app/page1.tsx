@@ -1,14 +1,13 @@
 /**
  * File: app/page.tsx
  * Mô tả: Trang Tổng quan (Dashboard Overview) - theo thiết kế mới
- * Cập nhật: 2026-08-17 - Thêm hiển thị Yêu cầu cấp quyền & Lịch sử thay đổi
  */
 
 "use client"
 
 import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
-import { Card, Col, Layout, Row, Statistic, Typography, Avatar, Badge, Empty, Spin, Tag } from "antd"
+import { Card, Col, Layout, Row, Statistic, Typography, Avatar, Badge } from "antd"
 import {
   TeamOutlined,
   SafetyCertificateOutlined,
@@ -24,20 +23,11 @@ import {
   SyncOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
-  KeyOutlined,
-  CloseCircleOutlined,
-  ExclamationCircleOutlined,
 } from "@ant-design/icons"
 
 import { PageLayout } from "@/components/page-layout"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
-import dayjs from "dayjs"
-import relativeTime from "dayjs/plugin/relativeTime"
-import "dayjs/locale/vi"
-
-dayjs.extend(relativeTime)
-dayjs.locale("vi")
 
 // ============================================================
 // INTERFACES
@@ -62,29 +52,6 @@ interface UnitStat {
   color: string
 }
 
-interface PermissionRequest {
-  ID: string
-  Title: string
-  RequestBy: string
-  RequesterName?: string
-  StatusID: string
-  RequestDate: string
-  ApprovedDate?: string
-  ApprovedByName?: string
-  RejectReason?: string
-  Description?: string
-}
-
-interface ChangeHistoryItem {
-  HistoryID: string
-  ChangeType: string
-  ChangedBy: string
-  ChangedByName?: string
-  ChangeDate: string
-  Description?: string
-  TotalSoldier?: number
-}
-
 // ============================================================
 // MAIN COMPONENT
 // ============================================================
@@ -98,12 +65,6 @@ export default function DashboardOverviewPage() {
   const [rankStats, setRankStats] = useState<RankStat[]>([])
   const [unitStats, setUnitStats] = useState<UnitStat[]>([])
   const [monthlySeries, setMonthlySeries] = useState<{ month: string; total: number; recruited: number; discharged: number }[]>([])
-  
-  // New states for permission requests and change history
-  const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
-  const [changeHistory, setChangeHistory] = useState<ChangeHistoryItem[]>([])
-  const [loadingActivities, setLoadingActivities] = useState(false)
-  const [activeActivityTab, setActiveActivityTab] = useState<"requests" | "history">("requests")
 
   // Palette dùng để tô donut/thanh ngang theo thứ tự cố định
   const RANK_PALETTE = ["#1a3a5c", "#2e7d32", "#00796b", "#ef6c00", "#5c6bc0", "#8e24aa", "#6b8e23", "#3a5f3a"]
@@ -154,38 +115,8 @@ export default function DashboardOverviewPage() {
     }
   }, [user?.userId, pendingCount])
 
-  // Load permission requests and change history
-  const loadActivities = useCallback(async () => {
-    if (!user?.userId) return
-    setLoadingActivities(true)
-    try {
-      // Load permission requests (latest 5)
-      const prRes = await fetch(`/api/permission-requests?userId=${encodeURIComponent(user.userId)}`)
-      const prResult = await prRes.json()
-      if (prResult.success) {
-        setPermissionRequests((prResult.data || []).slice(0, 5))
-      }
-
-      // Load change history (latest 5)
-      const chRes = await fetch(`/api/change-history?userId=${encodeURIComponent(user.userId)}`)
-      const chResult = await chRes.json()
-      if (chResult.success) {
-        setChangeHistory((chResult.data || []).slice(0, 5))
-      }
-    } catch (error) {
-      console.error("Lỗi khi tải hoạt động:", error)
-    } finally {
-      setLoadingActivities(false)
-    }
-  }, [user?.userId])
-
   useEffect(() => { if (!isLoading && !user) router.replace("/login") }, [user, isLoading, router])
-  useEffect(() => { 
-    if (!isLoading && user) {
-      loadStats()
-      loadActivities()
-    }
-  }, [user, isLoading, loadStats, loadActivities])
+  useEffect(() => { if (!isLoading && user) loadStats() }, [user, isLoading, loadStats])
 
   // ============================================================
   // GUARD
@@ -439,219 +370,50 @@ export default function DashboardOverviewPage() {
           </Card>
         </Col>
 
-        {/* Yêu cầu cấp quyền & Lịch sử thay đổi */}
+        {/* Notifications & Tasks */}
         <Col xs={24} lg={10}>
-          <Card 
-            style={{ borderRadius: 10, height: "100%" }} 
-            styles={{ body: { padding: "0" } }}
-          >
-            <div style={{ borderBottom: "1px solid #f0f0f0", padding: "12px 20px 0" }}>
-              <div style={{ display: "flex", gap: 24 }}>
-                <div
-                  onClick={() => setActiveActivityTab("requests")}
-                  style={{
-                    padding: "8px 0",
-                    fontSize: 14,
-                    fontWeight: activeActivityTab === "requests" ? 600 : 400,
-                    color: activeActivityTab === "requests" ? "#2e5c2e" : "#666",
-                    borderBottom: activeActivityTab === "requests" ? "2px solid #2e5c2e" : "2px solid transparent",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <KeyOutlined />
-                  Yêu cầu cấp quyền
-                  {permissionRequests.length > 0 && (
-                    <span style={{
-                      background: permissionRequests.some(r => r.StatusID === "Pending") ? "#ff9800" : "#e0e0e0",
-                      color: "#fff",
-                      fontSize: 10,
-                      fontWeight: 700,
-                      borderRadius: 10,
-                      padding: "1px 6px",
-                      lineHeight: "16px",
-                    }}>
-                      {permissionRequests.filter(r => r.StatusID === "Pending").length}
-                    </span>
-                  )}
+          <Card title={<span style={{ fontWeight: 600 }}>Thông báo & Công việc</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "12px 16px" } }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+              {/* Notification 1 */}
+              <div
+                style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee", cursor: "pointer" }}
+                onClick={() => router.push("/soldiers")}
+              >
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <FileSearchOutlined style={{ fontSize: 18, color: "#2e7d32" }} />
                 </div>
-                <div
-                  onClick={() => setActiveActivityTab("history")}
-                  style={{
-                    padding: "8px 0",
-                    fontSize: 14,
-                    fontWeight: activeActivityTab === "history" ? 600 : 400,
-                    color: activeActivityTab === "history" ? "#2e5c2e" : "#666",
-                    borderBottom: activeActivityTab === "history" ? "2px solid #2e5c2e" : "2px solid transparent",
-                    cursor: "pointer",
-                    transition: "all 0.2s",
-                    display: "flex",
-                    alignItems: "center",
-                    gap: 6,
-                  }}
-                >
-                  <HistoryOutlined />
-                  Lịch sử thay đổi
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Có {stats.pending} báo cáo chờ duyệt</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Báo cáo tháng {new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}</div>
                 </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}</div>
+                <ArrowRightOutlined style={{ color: "#bbb", fontSize: 12 }} />
+              </div>
+
+              {/* Notification 2 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <SyncOutlined style={{ fontSize: 18, color: "#ef6c00" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Cập nhật thông tin quân nhân</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Kiểm tra thông tin mới cập nhật</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleDateString('vi-VN')}</div>
+              </div>
+
+              {/* Notification 3 */}
+              <div style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 14px", borderRadius: 8, background: "#f9f9f6", border: "1px solid #eee" }}>
+                <div style={{ width: 38, height: 38, borderRadius: 10, background: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+                  <CalendarOutlined style={{ fontSize: 18, color: "#1565c0" }} />
+                </div>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <div style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>Lịch khám sức khỏe định kỳ</div>
+                  <div style={{ fontSize: 12, color: "#757575" }}>Sắp diễn ra trong tháng {new Date().toLocaleDateString('vi-VN', { month: '2-digit', year: 'numeric' })}</div>
+                </div>
+                <div style={{ fontSize: 11, color: "#999", flexShrink: 0 }}>{new Date().toLocaleDateString('vi-VN')}</div>
               </div>
             </div>
-            <Spin spinning={loadingActivities}>
-              <div style={{ padding: "12px 16px", height: 280, overflowY: "auto" }}>
-                {/* Tab: Yêu cầu cấp quyền */}
-                {activeActivityTab === "requests" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {permissionRequests.length > 0 ? (
-                      permissionRequests.map((req) => {
-                        const isPending = req.StatusID === "Pending"
-                        const isApproved = req.StatusID === "Approved"
-                        const statusColor = isPending ? "orange" : isApproved ? "green" : "red"
-                        const statusText = isPending ? "Chờ duyệt" : isApproved ? "Đã duyệt" : "Từ chối"
-                        const statusIcon = isPending ? <ClockCircleOutlined /> : isApproved ? <CheckCircleOutlined /> : <CloseCircleOutlined />
-                        
-                        return (
-                          <div
-                            key={req.ID}
-                            style={{ 
-                              display: "flex", 
-                              alignItems: "center", 
-                              gap: 12, 
-                              padding: "10px 12px", 
-                              borderRadius: 8, 
-                              background: "#f9f9f6", 
-                              border: "1px solid #eee",
-                              cursor: "pointer",
-                              transition: "all 0.2s"
-                            }}
-                            onClick={() => router.push("/permission-requests")}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#f0f5ec"
-                              e.currentTarget.style.borderColor = "#b5d4b5"
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#f9f9f6"
-                              e.currentTarget.style.borderColor = "#eee"
-                            }}
-                          >
-                            <div style={{ 
-                              width: 36, 
-                              height: 36, 
-                              borderRadius: 8, 
-                              background: isPending ? "#fff3e0" : isApproved ? "#e8f5e9" : "#ffebee",
-                              display: "flex", 
-                              alignItems: "center", 
-                              justifyContent: "center", 
-                              flexShrink: 0 
-                            }}>
-                              {statusIcon}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 2 }}>
-                                {req.RequesterName || req.RequestBy}
-                              </div>
-                              <div style={{ fontSize: 11, color: "#757575" }}>
-                                {req.Title || "Yêu cầu cấp quyền"}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                              <Tag color={statusColor} style={{ margin: 0, fontSize: 11 }}>
-                                {statusText}
-                              </Tag>
-                              <span style={{ fontSize: 10, color: "#999" }}>
-                                {dayjs(req.RequestDate).fromNow()}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <Empty 
-                        description="Chưa có yêu cầu nào" 
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        style={{ padding: "40px 0" }}
-                      />
-                    )}
-                  </div>
-                )}
-
-                {/* Tab: Lịch sử thay đổi */}
-                {activeActivityTab === "history" && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                    {changeHistory.length > 0 ? (
-                      changeHistory.map((item) => {
-                        const isRequest = item.ChangeType === "REQUEST"
-                        const isChange = item.ChangeType === "CHANGE"
-                        const typeColor = isRequest ? "blue" : isChange ? "cyan" : "default"
-                        const typeText = isRequest ? "Yêu cầu" : isChange ? "Thay đổi" : item.ChangeType
-                        
-                        return (
-                          <div
-                            key={item.HistoryID}
-                            style={{ 
-                              display: "flex", 
-                              alignItems: "center", 
-                              gap: 12, 
-                              padding: "10px 12px", 
-                              borderRadius: 8, 
-                              background: "#f9f9f6", 
-                              border: "1px solid #eee",
-                              cursor: "pointer",
-                              transition: "all 0.2s"
-                            }}
-                            onClick={() => router.push("/change-history")}
-                            onMouseEnter={(e) => {
-                              e.currentTarget.style.background = "#f0f5ec"
-                              e.currentTarget.style.borderColor = "#b5d4b5"
-                            }}
-                            onMouseLeave={(e) => {
-                              e.currentTarget.style.background = "#f9f9f6"
-                              e.currentTarget.style.borderColor = "#eee"
-                            }}
-                          >
-                            <div style={{ 
-                              width: 36, 
-                              height: 36, 
-                              borderRadius: 8, 
-                              background: isRequest ? "#e3f2fd" : "#e0f7fa",
-                              display: "flex", 
-                              alignItems: "center", 
-                              justifyContent: "center", 
-                              flexShrink: 0 
-                            }}>
-                              {isRequest ? <KeyOutlined style={{ color: "#1565c0" }} /> : <SyncOutlined style={{ color: "#00796b" }} />}
-                            </div>
-                            <div style={{ flex: 1, minWidth: 0 }}>
-                              <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 2 }}>
-                                {item.ChangedByName || item.ChangedBy}
-                              </div>
-                              <div style={{ fontSize: 11, color: "#757575" }}>
-                                {item.Description || (item.TotalSoldier ? `${item.TotalSoldier} quân nhân` : "Thay đổi dữ liệu")}
-                              </div>
-                            </div>
-                            <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 4 }}>
-                              <Tag color={typeColor} style={{ margin: 0, fontSize: 11 }}>
-                                {typeText}
-                              </Tag>
-                              <span style={{ fontSize: 10, color: "#999" }}>
-                                {dayjs(item.ChangeDate).fromNow()}
-                              </span>
-                            </div>
-                          </div>
-                        )
-                      })
-                    ) : (
-                      <Empty 
-                        description="Chưa có lịch sử nào" 
-                        image={Empty.PRESENTED_IMAGE_SIMPLE}
-                        style={{ padding: "40px 0" }}
-                      />
-                    )}
-                  </div>
-                )}
-              </div>
-            </Spin>
           </Card>
         </Col>
       </Row>

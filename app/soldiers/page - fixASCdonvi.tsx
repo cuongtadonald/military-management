@@ -15,7 +15,7 @@ import { PageLayout } from "@/components/page-layout"
 import { StatusTag } from "@/components/status-tag"
 import { SoldierForm } from "@/components/soldier-form"
 import { ChangeReportTab } from "@/components/change-report-tab"
-// import SendNotificationTab from "@/components/send-notification-tab"
+import SendNotificationTab from "@/components/send-notification-tab"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
 
@@ -64,15 +64,12 @@ interface SoldierData {
 }
 
 interface UnitTreeNode {
-  title: React.ReactNode
+  title: string
   value: string
   key: string
   children?: UnitTreeNode[]
   isLeaf?: boolean
   unitId: string
-  hierarchyPath?: string
-  fullPathName?: string
-  unitShortName?: string
 }
 
 // ============================================================
@@ -105,7 +102,6 @@ export default function SoldierListPage() {
 
   const [search, setSearch] = useState("")
   const [selectedUnitId, setSelectedUnitId] = useState<string | undefined>(undefined)
-  const [selectedUnitPath, setSelectedUnitPath] = useState<string | undefined>(undefined)
   const [unitTreeData, setUnitTreeData] = useState<UnitTreeNode[]>([])
   const [unitTreeLoading, setUnitTreeLoading] = useState(false)
   const [unitSearchText, setUnitSearchText] = useState("")
@@ -119,9 +115,8 @@ export default function SoldierListPage() {
   const [activePagination, setActivePagination] = useState({ current: 1, pageSize: 10, total: 0 })
   const [dischargedPagination, setDischargedPagination] = useState({ current: 1, pageSize: 10, total: 0 })
 
-  //const debouncedSearch = useDebounce(search, 400)
-  const debouncedSearch = useDebounce(search, 250)
-  const debouncedTreeSearchText = useDebounce(unitSearchText, 250)
+  const debouncedSearch = useDebounce(search, 400)
+  const debouncedTreeSearchText = useDebounce(unitSearchText, 400)
 
   const [activeTab, setActiveTab] = useState<"active" | "discharged" | "changelog" | "notification">("active")
   const [soldierFormOpen, setSoldierFormOpen] = useState(false)
@@ -147,10 +142,7 @@ export default function SoldierListPage() {
         userId: currentUser.userId, mode, page: String(page), pageSize: String(pageSize),
       })
       if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim())
-      if (selectedUnitId) {
-        params.set('unitId', selectedUnitId)
-        if (selectedUnitPath) params.set('unitPath', selectedUnitPath)
-      }
+      if (selectedUnitId) params.set('unitId', selectedUnitId)
       const response = await fetch(`/api/soldiers?${params.toString()}`)
       const result = await response.json()
       if (result.success) {
@@ -159,7 +151,7 @@ export default function SoldierListPage() {
         else { setDischargedData(result.data); setDischargedPagination(nextPagination) }
       } else { message.error(result.message || 'Lỗi khi tải dữ liệu') }
     } catch (error) { console.error('Lỗi khi gọi API:', error); message.error('Lỗi kết nối server') }
-  }, [currentUser?.userId, activePagination.current, activePagination.pageSize, dischargedPagination.current, dischargedPagination.pageSize, debouncedSearch, selectedUnitId, selectedUnitPath, message])
+  }, [currentUser?.userId, activePagination.current, activePagination.pageSize, dischargedPagination.current, dischargedPagination.pageSize, debouncedSearch, selectedUnitId, message])
 
   const loadUnitTree = useCallback(async () => {
     if (!currentUser?.userId) return
@@ -167,11 +159,12 @@ export default function SoldierListPage() {
       setUnitTreeLoading(true)
       const response = await fetch(`/api/units?userId=${currentUser.userId}`)
       const result = await response.json()
+      console.log(result)
       if (result.success && result.data) {
         const buildTree = (units: any[]): UnitTreeNode[] => {
           const unitMap = new Map<string, UnitTreeNode>()
           const rootNodes: UnitTreeNode[] = []
-          units.forEach((unit: any) => { unitMap.set(unit.UnitID, { title: unit.UnitName, value: unit.UnitID, key: unit.UnitID, children: [], unitId: unit.UnitID, hierarchyPath: unit.HierarchyPath, fullPathName: unit.FullPathName, unitShortName: unit.UnitShortName }) })
+          units.forEach((unit: any) => { unitMap.set(unit.UnitID, { title: unit.UnitName, value: unit.UnitID, key: unit.UnitID, children: [], unitId: unit.UnitID }) })
           units.forEach((unit: any) => {
             const currentNode = unitMap.get(unit.UnitID); if (!currentNode) return
             if (unit.ParentUnitID) { const parentNode = unitMap.get(unit.ParentUnitID); if (parentNode) parentNode.children!.push(currentNode); else rootNodes.push(currentNode) }
@@ -241,139 +234,29 @@ export default function SoldierListPage() {
 
   const currentPagination = activeTab === "discharged" ? dischargedPagination : activePagination
 
-  // Chuẩn hóa khoảng trắng và khoảng trắng quanh dấu phẩy.
-  // "A,B,C" và "A, B, C" được coi là giống nhau.
-  const normalizeUnitSearch = (value: string) =>
-    value
-      .replace(/\s+/g, " ")
-      .replace(/\s*,\s*/g, ",")
-      .trim()
-      .toLocaleLowerCase()
-
-  const escapeRegExp = (value: string) =>
-    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-  // Tô đậm phần tên đơn vị tương ứng với kết quả search.
-  // Nếu search FullPathName có nhiều cấp, lấy cấp cuối cùng
-  // để tô đậm tên node hiện tại.
-  const highlightUnitText = (text: string, keyword: string): React.ReactNode => {
-    const normalizedKeyword = normalizeUnitSearch(keyword)
-    if (!normalizedKeyword) return text
-
-    const parts = normalizedKeyword
-      .split(",")
-      .map((part) => part.trim())
-      .filter(Boolean)
-
-    const target = parts[parts.length - 1] || normalizedKeyword
-    const regex = new RegExp(escapeRegExp(target), "gi")
-    const fragments: React.ReactNode[] = []
-    let cursor = 0
-    let key = 0
-    let match: RegExpExecArray | null
-
-    while ((match = regex.exec(text)) !== null) {
-      const start = match.index
-      const end = start + match[0].length
-
-      if (start > cursor) fragments.push(text.slice(cursor, start))
-      fragments.push(<strong key={key++}>{text.slice(start, end)}</strong>)
-      cursor = end
-
-      if (match[0].length === 0) regex.lastIndex++
-    }
-
-    if (fragments.length === 0) return text
-    if (cursor < text.length) fragments.push(text.slice(cursor))
-
-    return <>{fragments}</>
-  }
-
   const filteredUnitTreeData = useMemo(() => {
-    const searchText = normalizeUnitSearch(debouncedTreeSearchText)
-
-    // Không search: giữ nguyên toàn bộ cây.
+    const searchText = debouncedTreeSearchText.trim()
     if (!searchText) return unitTreeData
-
-    const normalize = (value?: React.ReactNode) =>
-      normalizeUnitSearch(typeof value === "string" ? value : "")
-
+    const searchLower = searchText.toLowerCase()
     const filterTree = (nodes: UnitTreeNode[]): UnitTreeNode[] => {
       const result: UnitTreeNode[] = []
-
       for (const node of nodes) {
-        // Search đồng thời theo 4 trường:
-        // 1. UnitName      -> title
-        // 2. UnitShortName
-        // 3. HierarchyPath
-        // 4. FullPathName
-        const nodeMatches =
-          normalize(node.title).includes(searchText) ||
-          normalize(node.unitShortName).includes(searchText) ||
-          normalize(node.hierarchyPath).includes(searchText) ||
-          normalize(node.fullPathName).includes(searchText) ||
-          // Search theo từng cấp trong FullPathName, không phụ thuộc
-          // có hay không có khoảng trắng sau dấu phẩy.
-          (searchText.includes(",") &&
-            searchText
-              .split(",")
-              .every((part) =>
-                normalize(node.fullPathName).includes(part.trim())
-              ))
-
-        // Nếu node con match thì vẫn giữ node cha để bảo toàn cấu trúc cây.
-        const filteredChildren = node.children?.length
-          ? filterTree(node.children)
-          : []
-
-        if (nodeMatches || filteredChildren.length > 0) {
-          result.push({
-            ...node,
-            // Nếu chính node match thì tô đậm phần khớp trên tên đơn vị.
-            title: nodeMatches
-              ? highlightUnitText(String(node.title ?? ""), unitSearchText)
-              : node.title,
-            // Nếu chính node match thì giữ toàn bộ children.
-            // Nếu chỉ có node con match thì chỉ giữ các nhánh match.
-            children: nodeMatches
-              ? node.children
-              : filteredChildren,
-          })
-        }
+        const titleMatch = node.title.toLowerCase().includes(searchLower)
+        const filteredChildren = node.children ? filterTree(node.children) : []
+        if (titleMatch || filteredChildren.length > 0) result.push({ ...node, children: titleMatch ? (node.children || []) : filteredChildren })
       }
-
       return result
     }
-
     return filterTree(unitTreeData)
   }, [unitTreeData, debouncedTreeSearchText])
 
   useEffect(() => {
-    if (!debouncedTreeSearchText.trim()) {
-      setExpandedUnitKeys([])
-      return
+    if (!debouncedTreeSearchText.trim()) { setExpandedUnitKeys([]); return }
+    const collectKeys = (nodes: UnitTreeNode[]): string[] => {
+      const keys: string[] = []; const traverse = (list: UnitTreeNode[]) => { for (const node of list) { keys.push(node.key); if (node.children?.length) traverse(node.children) } }
+      traverse(nodes); return keys
     }
-
-    // Khi search, tự mở tất cả node đang xuất hiện trong cây kết quả.
-    // Vì filterTree luôn giữ lại cha của node match nên node cha cũng
-    // được expand, giúp nhìn thấy node con được tìm thấy.
-    const collectExpandableKeys = (nodes: UnitTreeNode[]): string[] => {
-      const keys: string[] = []
-
-      const traverse = (list: UnitTreeNode[]) => {
-        for (const node of list) {
-          if (node.children?.length) {
-            keys.push(node.key)
-            traverse(node.children)
-          }
-        }
-      }
-
-      traverse(nodes)
-      return keys
-    }
-
-    setExpandedUnitKeys(collectExpandableKeys(filteredUnitTreeData))
+    setExpandedUnitKeys(collectKeys(filteredUnitTreeData))
   }, [filteredUnitTreeData, debouncedTreeSearchText])
 
   // ============================================================
@@ -483,7 +366,7 @@ export default function SoldierListPage() {
         </div>
       ),
     },
-    { title: "Mã chiến sĩ", dataIndex: "SoldierID", key: "SoldierID", width: 90, render: (id: string) => <span style={{ color: "#666", fontSize: 13 }}>{id}</span> },
+    { title: "Mã quân nhân", dataIndex: "SoldierID", key: "SoldierID", width: 90, render: (id: string) => <span style={{ color: "#666", fontSize: 13 }}>{id}</span> },
     {
       title: "Cấp bậc", dataIndex: "RankName", key: "RankName", width: 110,
       render: (rank: string) => (
@@ -598,7 +481,7 @@ export default function SoldierListPage() {
         <Row gutter={[12, 12]} align="middle">
           <Col flex="auto">
             <Input
-              placeholder="Tìm theo tên, CCCD, mã chiến sĩ..."
+              placeholder="Tìm theo tên, CCCD, mã quân nhân..."
               prefix={<SearchOutlined style={{ color: "#8c8c8c" }} />}
               value={search} onChange={(e) => setSearch(e.target.value)}
               style={{ borderRadius: 8, maxWidth: 300 }}
@@ -608,37 +491,12 @@ export default function SoldierListPage() {
           <Col>
             <TreeSelect
               showSearch allowClear placeholder="Chọn đơn vị"
-              value={selectedUnitId}
-              onChange={(value) => {
-                if (!value) {
-                  setSelectedUnitId(undefined)
-                  setSelectedUnitPath(undefined)
-                  return
-                }
-
-                const findNode = (nodes: UnitTreeNode[]): UnitTreeNode | undefined => {
-                  for (const node of nodes) {
-                    if (node.value === value) return node
-                    if (node.children?.length) {
-                      const found = findNode(node.children)
-                      if (found) return found
-                    }
-                  }
-                  return undefined
-                }
-
-                const selectedNode = findNode(unitTreeData)
-                setSelectedUnitId(value)
-                setSelectedUnitPath(selectedNode?.hierarchyPath)
-              }}
+              value={selectedUnitId} onChange={(value) => setSelectedUnitId(value)}
               treeData={filteredUnitTreeData}
               searchValue={unitSearchText} onSearch={(value) => setUnitSearchText(value)}
               treeExpandedKeys={expandedUnitKeys} onTreeExpand={(keys) => setExpandedUnitKeys(keys as string[])}
-              loading={unitTreeLoading}
-              style={{ width: 350, borderRadius: 8 }}
-              // Đã filter thủ công theo UnitName + UnitShortName + HierarchyPath + FullPathName.
-              // Tắt filter mặc định của AntD để không lọc lần 2 chỉ theo title.
-              filterTreeNode={false}
+              loading={unitTreeLoading} style={{ width: 350, borderRadius: 8 }}
+              treeNodeFilterProp="title"
             />
           </Col>
           <Col>
@@ -697,7 +555,7 @@ export default function SoldierListPage() {
             { key: "active", label: `Đang công tác (${activeCount})` },
             { key: "discharged", label: `Đã xuất ngũ (${dischargedCount})` },
             // { key: "changelog", label: `Báo cáo chờ xử lý (${pendingCount})` },
-            // { key: "notification", label: `Gửi thông báo` },
+            { key: "notification", label: `Gửi thông báo` },
           ]}
         />
       </div>
@@ -735,7 +593,7 @@ export default function SoldierListPage() {
       )}
 
       {activeTab === "changelog" && <ChangeReportTab />}
-      {/* {activeTab === "notification" && <SendNotificationTab />} */}
+      {activeTab === "notification" && <SendNotificationTab />}
 
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleFileChange} />
 

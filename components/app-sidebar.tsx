@@ -48,6 +48,7 @@ export function AppSidebar() {
 
   const getActiveKey = () => {
     if (pathname === "/") return "overview"
+    if (pathname === "/notifications/send") return ""
     if (pathname === "/soldiers/add") return "add"
     if (pathname.startsWith("/soldiers")) return "soldiers"
     if (pathname.startsWith("/reports")) return "reports"

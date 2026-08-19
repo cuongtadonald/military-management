@@ -15,7 +15,7 @@ import { PageLayout } from "@/components/page-layout"
 import { StatusTag } from "@/components/status-tag"
 import { SoldierForm } from "@/components/soldier-form"
 import { ChangeReportTab } from "@/components/change-report-tab"
-// import SendNotificationTab from "@/components/send-notification-tab"
+import SendNotificationTab from "@/components/send-notification-tab"
 import { useAuth } from "@/components/auth-provider"
 import { useChangeLog } from "@/lib/change-log"
 
@@ -241,62 +241,34 @@ export default function SoldierListPage() {
 
   const currentPagination = activeTab === "discharged" ? dischargedPagination : activePagination
 
-  // Chuẩn hóa khoảng trắng và khoảng trắng quanh dấu phẩy.
-  // "A,B,C" và "A, B, C" được coi là giống nhau.
-  const normalizeUnitSearch = (value: string) =>
-    value
-      .replace(/\s+/g, " ")
-      .replace(/\s*,\s*/g, ",")
-      .trim()
-      .toLocaleLowerCase()
-
-  const escapeRegExp = (value: string) =>
-    value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")
-
-  // Tô đậm phần tên đơn vị tương ứng với kết quả search.
-  // Nếu search FullPathName có nhiều cấp, lấy cấp cuối cùng
-  // để tô đậm tên node hiện tại.
+  // Tô đậm phần khớp với từ khóa đang search trên cây đơn vị.
   const highlightUnitText = (text: string, keyword: string): React.ReactNode => {
-    const normalizedKeyword = normalizeUnitSearch(keyword)
-    if (!normalizedKeyword) return text
+    const trimmedKeyword = keyword.trim()
+    if (!trimmedKeyword) return text
 
-    const parts = normalizedKeyword
-      .split(",")
-      .map((part) => part.trim())
-      .filter(Boolean)
+    const lowerText = text.toLocaleLowerCase()
+    const lowerKeyword = trimmedKeyword.toLocaleLowerCase()
+    const index = lowerText.indexOf(lowerKeyword)
 
-    const target = parts[parts.length - 1] || normalizedKeyword
-    const regex = new RegExp(escapeRegExp(target), "gi")
-    const fragments: React.ReactNode[] = []
-    let cursor = 0
-    let key = 0
-    let match: RegExpExecArray | null
+    if (index === -1) return text
 
-    while ((match = regex.exec(text)) !== null) {
-      const start = match.index
-      const end = start + match[0].length
-
-      if (start > cursor) fragments.push(text.slice(cursor, start))
-      fragments.push(<strong key={key++}>{text.slice(start, end)}</strong>)
-      cursor = end
-
-      if (match[0].length === 0) regex.lastIndex++
-    }
-
-    if (fragments.length === 0) return text
-    if (cursor < text.length) fragments.push(text.slice(cursor))
-
-    return <>{fragments}</>
+    return (
+      <>
+        {text.slice(0, index)}
+        <strong>{text.slice(index, index + trimmedKeyword.length)}</strong>
+        {text.slice(index + trimmedKeyword.length)}
+      </>
+    )
   }
 
   const filteredUnitTreeData = useMemo(() => {
-    const searchText = normalizeUnitSearch(debouncedTreeSearchText)
+    const searchText = debouncedTreeSearchText.trim().toLowerCase()
 
     // Không search: giữ nguyên toàn bộ cây.
     if (!searchText) return unitTreeData
 
     const normalize = (value?: React.ReactNode) =>
-      normalizeUnitSearch(typeof value === "string" ? value : "")
+      (typeof value === "string" ? value : "").toLocaleLowerCase().trim()
 
     const filterTree = (nodes: UnitTreeNode[]): UnitTreeNode[] => {
       const result: UnitTreeNode[] = []
@@ -311,15 +283,7 @@ export default function SoldierListPage() {
           normalize(node.title).includes(searchText) ||
           normalize(node.unitShortName).includes(searchText) ||
           normalize(node.hierarchyPath).includes(searchText) ||
-          normalize(node.fullPathName).includes(searchText) ||
-          // Search theo từng cấp trong FullPathName, không phụ thuộc
-          // có hay không có khoảng trắng sau dấu phẩy.
-          (searchText.includes(",") &&
-            searchText
-              .split(",")
-              .every((part) =>
-                normalize(node.fullPathName).includes(part.trim())
-              ))
+          normalize(node.fullPathName).includes(searchText)
 
         // Nếu node con match thì vẫn giữ node cha để bảo toàn cấu trúc cây.
         const filteredChildren = node.children?.length
@@ -697,7 +661,7 @@ export default function SoldierListPage() {
             { key: "active", label: `Đang công tác (${activeCount})` },
             { key: "discharged", label: `Đã xuất ngũ (${dischargedCount})` },
             // { key: "changelog", label: `Báo cáo chờ xử lý (${pendingCount})` },
-            // { key: "notification", label: `Gửi thông báo` },
+            { key: "notification", label: `Gửi thông báo` },
           ]}
         />
       </div>
@@ -735,7 +699,7 @@ export default function SoldierListPage() {
       )}
 
       {activeTab === "changelog" && <ChangeReportTab />}
-      {/* {activeTab === "notification" && <SendNotificationTab />} */}
+      {activeTab === "notification" && <SendNotificationTab />}
 
       <input ref={fileInputRef} type="file" accept=".xlsx,.xls" style={{ display: "none" }} onChange={handleFileChange} />
 

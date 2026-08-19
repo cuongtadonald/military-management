@@ -56,72 +56,23 @@ export async function GET(request: NextRequest) {
     }
 
     if (unitId) {
-      /*
-       * Chọn đơn vị cha => lấy quân nhân của chính đơn vị đó
-       * + tất cả đơn vị con ở mọi cấp.
-       *
-       * Không dùng UnitHierarchyPath trả về từ Stored Procedure để
-       * so sánh vì format path của SP có thể khác OrganizationUnit.
-       * Lấy danh sách UnitID descendants trực tiếp từ OrganizationUnit,
-       * sau đó lọc kết quả của Stored Procedure theo UnitID.
-       */
-      let descendantResult;
+      const unitResult = await pool.request()
+        .input('unitId', sql.VarChar, unitId)
+        .query(`
+          SELECT HierarchyPath
+          FROM OrganizationUnit
+          WHERE UnitID = @unitId
+        `);
 
-      if (unitPath) {
-        const normalizedPath = unitPath.endsWith("/")
-          ? unitPath
-          : `${unitPath}/`;
-
-        descendantResult = await pool.request()
-          .input("unitPathPrefix", sql.VarChar, `${normalizedPath}%`)
-          .query(`
-            SELECT UnitID
-            FROM OrganizationUnit
-            WHERE HierarchyPath LIKE @unitPathPrefix
-          `);
-      } else {
-        const unitResult = await pool.request()
-          .input("unitId", sql.VarChar, unitId)
-          .query(`
-            SELECT HierarchyPath
-            FROM OrganizationUnit
-            WHERE UnitID = @unitId
-          `);
-
-        const selectedHierarchyPath =
-          String(unitResult.recordset[0]?.HierarchyPath || "").trim();
-
-        if (selectedHierarchyPath) {
-          const normalizedPath = selectedHierarchyPath.endsWith("/")
-            ? selectedHierarchyPath
-            : `${selectedHierarchyPath}/`;
-
-          descendantResult = await pool.request()
-            .input("unitPathPrefix", sql.VarChar, `${normalizedPath}%`)
-            .query(`
-              SELECT UnitID
-              FROM OrganizationUnit
-              WHERE HierarchyPath LIKE @unitPathPrefix
-            `);
-        } else {
-          descendantResult = { recordset: [{ UnitID: unitId }] };
-        }
-      }
-
-      const allowedUnitIds = new Set<string>(
-        descendantResult.recordset.map((row: any) =>
-          String(row.UnitID || "").trim()
-        )
-      );
-
-      allowedUnitIds.add(unitId);
-
-      mappedData = mappedData.filter((row: any) =>
-        allowedUnitIds.has(String(row.UnitID || "").trim())
-      );
+      const selectedHierarchyPath = unitResult.recordset[0]?.HierarchyPath || '';
+      mappedData = mappedData.filter((row: any) => {
+        if (row.UnitID === unitId) return true;
+        if (!selectedHierarchyPath) return false;
+        return String(row.UnitHierarchyPath || '').startsWith(selectedHierarchyPath);
+      });
     }
 
-    if (unitPath && !unitId) {
+    if (unitPath) {
       const unitPathLower = unitPath.toLowerCase();
       const parts = unitPath.split(',').map((part) => part.trim()).filter(Boolean);
       const hierarchySearch = parts.length ? `/${parts.join('/').toLowerCase()}/` : '';
