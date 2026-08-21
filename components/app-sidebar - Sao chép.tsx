@@ -18,7 +18,6 @@ import {
   StarFilled,
   SafetyCertificateOutlined,
   BellOutlined,
-  DatabaseOutlined,
 } from "@ant-design/icons"
 
 const { Sider } = Layout
@@ -40,7 +39,6 @@ const menuItems: SidebarItem[] = [
   { key: "permissionRequests", icon: <BellOutlined />, label: "Yêu cầu cấp quyền", path: "/permission-requests" },
   { key: "history", icon: <HistoryOutlined />, label: "Lịch sử thay đổi", path: "/change-history" },
   { key: "permissions", icon: <SafetyCertificateOutlined />, label: "Quản lý quyền", path: "/permissions" },
-  { key: "backup", icon: <DatabaseOutlined />, label: "Quản lý Backup", path: "/backup" },
   // { key: "settings", icon: <SettingOutlined />, label: "Cài đặt hệ thống", path: "/settings" },
 ]
 
@@ -58,7 +56,6 @@ export function AppSidebar() {
     if (pathname.startsWith("/permission-requests")) return "permissionRequests"
     if (pathname.startsWith("/change-history")) return "history"
     if (pathname.startsWith("/permissions")) return "permissions"
-    if (pathname.startsWith("/backup")) return "backup"
     if (pathname.startsWith("/settings")) return "settings"
     return "overview"
   }

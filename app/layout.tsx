@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   manifest: "/manifest.json",
 
   icons: {
-    icon: "/icons/icon-192.png",
+    icon: "/logovn.png",
   },
 };
 

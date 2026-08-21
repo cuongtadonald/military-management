@@ -130,7 +130,7 @@ export default function LoginPage() {
         width: "100vw",
         height: "100vh",
         overflow: "hidden",
-        fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif",
+        fontFamily: "'Inter', 'Roboto', sans-serif",
       }}
     >
       {/* ====== FULL-SCREEN BACKGROUND IMAGE ====== */}

@@ -184,10 +184,20 @@ export async function POST(request: NextRequest) {
       // Lưu file vào thư mục
       await writeFile(filePath, buffer);
 
-      // Sinh FileID duy nhất bằng NEWID() - không lo trùng PRIMARY KEY
-      const fileIdResult = await pool.request()
-        .query(`SELECT NEWID() AS NewFileID`);
-      const newFileID = `FIL${fileIdResult.recordset[0].NewFileID.replace(/-/g, '').substring(0, 16)}`;
+      // Sinh FileID tự động
+      const maxFileIdResult = await pool.request()
+        .query(`
+          SELECT MAX(
+            CAST(
+              SUBSTRING(FileID, 4, LEN(FileID) - 3) AS INT
+            )
+          ) AS MaxNum
+          FROM AttachmentFile
+          WHERE FileID LIKE 'FIL%'
+        `);
+
+      const maxFileNum = maxFileIdResult.recordset[0]?.MaxFileNum || 0;
+      const newFileID = `FIL${String(maxFileNum + 1).padStart(3, '0')}`;
 
       // Lưu thông tin file vào database
       const relativePath = `/uploads/documents/${newDocumentID}/${fileName}`;
@@ -307,10 +317,20 @@ export async function PUT(request: NextRequest) {
       // Lưu file vào thư mục
       await writeFile(filePath, buffer);
 
-      // Sinh FileID duy nhất bằng NEWID() - không lo trùng PRIMARY KEY
-      const fileIdResult = await pool.request()
-        .query(`SELECT NEWID() AS NewFileID`);
-      const newFileID = `FIL${fileIdResult.recordset[0].NewFileID.replace(/-/g, '').substring(0, 16)}`;
+      // Sinh FileID tự động
+      const maxFileIdResult = await pool.request()
+        .query(`
+          SELECT MAX(
+            CAST(
+              SUBSTRING(FileID, 4, LEN(FileID) - 3) AS INT
+            )
+          ) AS MaxNum
+          FROM AttachmentFile
+          WHERE FileID LIKE 'FIL%'
+        `);
+
+      const maxFileNum = maxFileIdResult.recordset[0]?.MaxNum || 0;
+      const newFileID = `FIL${String(maxFileNum + 1).padStart(3, '0')}`;
 
       // Lưu thông tin file vào database
       const relativePath = `/uploads/documents/${DocumentID}/${fileName}`;

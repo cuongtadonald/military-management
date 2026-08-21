@@ -171,8 +171,7 @@ export function DocumentDetailModal({ open, documentId, onClose }: DocumentDetai
         <Button
           type="link"
           icon={<DownloadOutlined />}
-          href={record.FilePath}
-          target="_blank"
+          href={`/api/documents/download?fileId=${record.FileID}`}
           size="small"
         >
           Tải xuống

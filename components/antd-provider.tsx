@@ -16,7 +16,7 @@ export function AntdProvider({ children }: { children: ReactNode }) {
             colorInfo: militaryGreen,
             colorLink: militaryGreen,
             borderRadius: 8,
-            fontFamily: "var(--font-geist-sans), sans-serif",
+            fontFamily: "'Segoe UI', 'Roboto', 'Helvetica Neue', Arial, sans-serif",
             colorBgLayout: "#f3f4ec",
           },
           components: {

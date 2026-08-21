@@ -142,9 +142,8 @@ export function DocumentForm({ open, onClose, document: documentProp, onSuccess 
 
   const handleDownloadFile = (file: AttachmentFile) => {
     const link = document.createElement('a')
-    link.href = file.FilePath
+    link.href = `/api/documents/download?fileId=${file.FileID}`
     link.download = file.FileName
-    link.target = '_blank'
     document.body.appendChild(link)
     link.click()
     document.body.removeChild(link)
