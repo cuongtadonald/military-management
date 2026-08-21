@@ -6,7 +6,7 @@
 
 "use client"
 
-import { useEffect, useState, useMemo } from "react"
+import { useEffect, useState, useCallback } from "react"
 import { useRouter } from "next/navigation"
 import {
   App,
@@ -190,6 +190,11 @@ export default function ChangeHistoryPage() {
     }
   }
 
+  const handleSearch = () => {
+    // TODO: Implement server-side filtering
+    message.info("Chức năng tìm kiếm đang được phát triển")
+  }
+
   const handleReset = () => {
     setDateRange(null)
     setChangeType("")
@@ -222,67 +227,6 @@ export default function ChangeHistoryPage() {
       setDetailLoading(false)
     }
   }
-
-  // Client-side filtering
-  const filteredHistory = useMemo(() => {
-    let result = [...history]
-
-    // Filter by date range
-    if (dateRange?.[0]) {
-      const from = dateRange[0].startOf("day").valueOf()
-      result = result.filter((r) => new Date(r.ChangeDate).getTime() >= from)
-    }
-    if (dateRange?.[1]) {
-      const to = dateRange[1].endOf("day").valueOf()
-      result = result.filter((r) => new Date(r.ChangeDate).getTime() <= to)
-    }
-
-    // Filter by change type
-    if (changeType) {
-      result = result.filter((r) => r.ChangeType === changeType)
-    }
-
-    // Filter by operator name (case-insensitive, partial match)
-    if (operatorName.trim()) {
-      const keyword = operatorName.trim().toLowerCase()
-      result = result.filter(
-        (r) => (r.ChangedByName || "").toLowerCase().includes(keyword)
-      )
-    }
-
-    // Filter by content (search in Description and ChangeReason)
-    if (content.trim()) {
-      const keyword = content.trim().toLowerCase()
-      result = result.filter(
-        (r) =>
-          (r.Description || "").toLowerCase().includes(keyword) ||
-          (r.ChangeReason || "").toLowerCase().includes(keyword) ||
-          getHistoryId(r).toLowerCase().includes(keyword)
-      )
-    }
-
-    // Filter by soldier count
-    if (soldierCount) {
-      if (soldierCount === "0") {
-        result = result.filter((r) => !r.TotalSoldier || r.TotalSoldier === 0)
-      } else if (soldierCount === "1-10") {
-        result = result.filter((r) => (r.TotalSoldier || 0) >= 1 && (r.TotalSoldier || 0) <= 10)
-      } else if (soldierCount === "11-50") {
-        result = result.filter((r) => (r.TotalSoldier || 0) >= 11 && (r.TotalSoldier || 0) <= 50)
-      } else if (soldierCount === "51+") {
-        result = result.filter((r) => (r.TotalSoldier || 0) > 50)
-      }
-    }
-
-    // Sort
-    if (sortBy === "newest") {
-      result.sort((a, b) => new Date(b.ChangeDate).getTime() - new Date(a.ChangeDate).getTime())
-    } else if (sortBy === "oldest") {
-      result.sort((a, b) => new Date(a.ChangeDate).getTime() - new Date(b.ChangeDate).getTime())
-    }
-
-    return result
-  }, [history, dateRange, changeType, operatorName, content, soldierCount, sortBy])
 
   if (isLoading || !user) {
     return (
@@ -554,9 +498,17 @@ export default function ChangeHistoryPage() {
               options={SORT_OPTIONS}
             />
           </Col>
-          <Col span={6} style={{ display: "flex", alignItems: "flex-end" }}>
+          <Col span={6} style={{ display: "flex", alignItems: "flex-end", gap: 8 }}>
             <Button icon={<ReloadOutlined />} onClick={handleReset}>
-              Đặt lại bộ lọc
+              Đặt lại
+            </Button>
+            <Button
+              type="primary"
+              icon={<SearchOutlined />}
+              onClick={handleSearch}
+              style={{ background: "#3a4d2e", borderColor: "#3a4d2e" }}
+            >
+              Tìm kiếm
             </Button>
           </Col>
         </Row>
@@ -567,7 +519,7 @@ export default function ChangeHistoryPage() {
         <Table
           rowKey={(record) => getHistoryId(record)}
           columns={columns}
-          dataSource={filteredHistory}
+          dataSource={history}
           loading={loading}
           onRow={(record) => ({
             onClick: () => openHistoryDetail(record),

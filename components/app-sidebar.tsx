@@ -40,7 +40,7 @@ const menuItems: SidebarItem[] = [
   { key: "permissionRequests", icon: <BellOutlined />, label: "Yêu cầu cấp quyền", path: "/permission-requests" },
   { key: "history", icon: <HistoryOutlined />, label: "Lịch sử thay đổi", path: "/change-history" },
   { key: "permissions", icon: <SafetyCertificateOutlined />, label: "Quản lý quyền", path: "/permissions" },
-  { key: "backup", icon: <DatabaseOutlined />, label: "Quản lý Backup", path: "/backup" },
+  // { key: "backup", icon: <DatabaseOutlined />, label: "Quản lý Backup", path: "/backup" },
   // { key: "settings", icon: <SettingOutlined />, label: "Cài đặt hệ thống", path: "/settings" },
 ]
 

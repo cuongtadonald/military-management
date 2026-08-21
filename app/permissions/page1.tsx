@@ -395,10 +395,33 @@ export default function PermissionsPage() {
               </span>
             ),
           },
-          // Tạm ẩn: Quản lý vai trò, Ma trận quyền, Nhật ký hoạt động
-          // { key: "roles", label: <span><SafetyCertificateOutlined /> Quản lý vai trò</span>, disabled: true },
-          // { key: "matrix", label: <span><SettingOutlined /> Ma trận quyền</span>, disabled: true },
-          // { key: "log", label: <span><HistoryOutlined /> Nhật ký hoạt động</span>, disabled: true },
+          {
+            key: "roles",
+            label: (
+              <span>
+                <SafetyCertificateOutlined /> Quản lý vai trò
+              </span>
+            ),
+            disabled: true,
+          },
+          {
+            key: "matrix",
+            label: (
+              <span>
+                <SettingOutlined /> Ma trận quyền
+              </span>
+            ),
+            disabled: true,
+          },
+          {
+            key: "log",
+            label: (
+              <span>
+                <HistoryOutlined /> Nhật ký hoạt động
+              </span>
+            ),
+            disabled: true,
+          },
         ]}
       />
 

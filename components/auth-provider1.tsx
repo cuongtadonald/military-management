@@ -1,14 +1,12 @@
 /**
  * File: components/auth-provider.tsx
  * Mô tả: Auth context với permission management
- * Cập nhật: 2026-08-21 - Thêm polling realtime permission sync
+ * Cập nhật: 2026-07-10 - Sửa logic PermissionLevel
  * 
  * Thay đổi:
  * - Thêm field permissionLevel vào User interface
  * - Sửa logic canManagePermissions: chỉ hiển thị cho PermissionLevel > 3
  * - Dùng useRef cho BroadcastChannel để tránh tạo mới liên tục
- * - Thêm polling 8s để kiểm tra permission thay đổi từ server (cross-device)
- * - Dùng useRef cho permissionLevel để polling không bị stale closure
  */
 
 "use client"
@@ -58,39 +56,28 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null)
   const [isLoading, setIsLoading] = useState(true)
   const channelRef = useRef<BroadcastChannel | null>(null)
-  const userRef = useRef<User | null>(null) // Ref để polling không bị stale closure
-
-  // Sync ref với state
-  useEffect(() => {
-    userRef.current = user
-  }, [user])
 
   // Refresh permission cho user hiện tại - reload permissionLevel từ server
   const refreshPermissions = useCallback(async () => {
-    const currentUser = userRef.current
-    if (!currentUser?.userId) return
+    if (!user?.userId) return
     
     try {
-      const response = await fetch(`/api/auth/refresh-permission?userId=${currentUser.userId}`)
+      const response = await fetch(`/api/auth/refresh-permission?userId=${user.userId}`)
       const result = await response.json()
       
       if (result.success) {
-        const newLevel = result.data.permissionLevel
-        // Chỉ update nếu thực sự thay đổi
-        if (currentUser.permissionLevel !== newLevel) {
-          const updatedUser: User = {
-            ...currentUser,
-            permissionLevel: newLevel,
-            permissions: {},
-          }
-          setUser(updatedUser)
-          localStorage.setItem("user", JSON.stringify(updatedUser))
+        const updatedUser: User = {
+          ...user,
+          permissionLevel: result.data.permissionLevel,
+          permissions: {},
         }
+        setUser(updatedUser)
+        localStorage.setItem("user", JSON.stringify(updatedUser))
       }
     } catch (error) {
       console.error("Lỗi khi refresh permission:", error)
     }
-  }, [])
+  }, [user])
 
   // Check session khi mount
   useEffect(() => {
@@ -137,8 +124,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       const { type, userId, permissionLevel } = event.data
       
       if (type === 'permission_update' && userId) {
-        // Lấy user hiện tại từ ref (tránh stale closure)
-        const currentUser = userRef.current
+        // Lấy user hiện tại từ state hoặc localStorage
+        const currentUser = user || JSON.parse(localStorage.getItem("user") || "null")
         
         if (currentUser && currentUser.userId === userId) {
           // User hiện tại bị ảnh hưởng → cập nhật permissionLevel
@@ -165,7 +152,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       if (e.key === "user" && e.newValue) {
         try {
           const updatedUser: User = JSON.parse(e.newValue)
-          const currentUser = userRef.current
+          const currentUser = user || JSON.parse(localStorage.getItem("user") || "null")
           if (currentUser && updatedUser.userId === currentUser.userId) {
             setUser(updatedUser)
           }
@@ -183,44 +170,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       window.removeEventListener('storage', handleStorageChange)
       // KHÔNG đóng channel ở đây để các component khác vẫn dùng được
     }
-  }, []) // Chạy 1 lần khi mount
-
-  // Polling: Định kỳ kiểm tra permission thay đổi từ server (cross-device sync)
-  useEffect(() => {
-    const POLL_INTERVAL = 8000 // 8 giây
-
-    const pollPermission = async () => {
-      const currentUser = userRef.current
-      if (!currentUser?.userId) return
-
-      try {
-        const response = await fetch(`/api/auth/refresh-permission?userId=${currentUser.userId}`)
-        const result = await response.json()
-        
-        if (result.success) {
-          const newLevel = result.data.permissionLevel
-          // Chỉ update nếu thực sự thay đổi
-          if (currentUser.permissionLevel !== newLevel) {
-            const updatedUser: User = {
-              ...currentUser,
-              permissionLevel: newLevel,
-              permissions: {},
-            }
-            setUser(updatedUser)
-            localStorage.setItem("user", JSON.stringify(updatedUser))
-          }
-        }
-      } catch (error) {
-        // Silent fail - không log để tránh spam console
-      }
-    }
-
-    const intervalId = setInterval(pollPermission, POLL_INTERVAL)
-
-    return () => {
-      clearInterval(intervalId)
-    }
-  }, []) // Chạy 1 lần khi mount
+  }, [user])
 
   // Login
   const login = async (username: string, password: string) => {
