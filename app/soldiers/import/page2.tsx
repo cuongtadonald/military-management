@@ -59,7 +59,6 @@ interface SoldierImportRow {
   FullName: string
   UnitID: string // Mã đơn vị
   UnitName: string // Tên đơn vị (không lưu DB)
-  UnitFullPath?: string // Đường dẫn đầy đủ (VD: "Quân khu 7,Sư đoàn 5,Phòng Tham mưu")
   Position: string
   RankID: string // Mã cấp bậc
   RankName: string // Tên cấp bậc (không lưu DB)
@@ -169,7 +168,6 @@ export default function ImportSoldiersPage() {
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
   const [checkingExisting, setCheckingExisting] = useState(false)
-  const [userHierarchyPath, setUserHierarchyPath] = useState<string>("")
 
   // Redirect nếu chưa đăng nhập
   useEffect(() => {
@@ -459,7 +457,7 @@ export default function ImportSoldiersPage() {
         setCheckingExisting(true)
         let existingIdSet = new Set<string>()
         
-        // 6a. Lấy tên đơn vị từ database và hierarchy path để validate
+        // 6a. Lấy tên đơn vị từ database
         try {
           const unitIdsToResolve = Array.from(new Set(
             parsedData.map(s => s.UnitID).filter(id => id.length > 0)
@@ -474,17 +472,12 @@ export default function ImportSoldiersPage() {
             const unitResult = await unitResponse.json()
             if (unitResult.success && unitResult.data?.unitNames) {
               const unitNameMap = unitResult.data.unitNames
-              const unitFullPathMap = unitResult.data.unitFullPaths || {}
-              const unitHierarchyPathMap = unitResult.data.unitHierarchyPaths || {}
-              // Cập nhật UnitName, UnitFullPath từ DB cho từng soldier
+              // Cập nhật UnitName từ DB cho từng soldier
               parsedData.forEach(soldier => {
                 if (soldier.UnitID && unitNameMap[soldier.UnitID]) {
                   soldier.UnitName = unitNameMap[soldier.UnitID]
-                  soldier.UnitFullPath = unitFullPathMap[soldier.UnitID]
                 }
               })
-              // Lưu user's hierarchy path (lấy từ đơn vị đầu tiên để so sánh)
-              // Thực tế cần lấy từ user's unit, nhưng ở đây ta sẽ validate ở backend
             }
           }
         } catch (err) {
@@ -836,25 +829,7 @@ export default function ImportSoldiersPage() {
     {
       title: "Đơn vị",
       dataIndex: "UnitName",
-      width: 250,
-      render: (_: string, record: SoldierImportRow) => {
-        const fullPath = record.UnitFullPath || record.UnitName
-        const parts = fullPath.split(",").map(p => p.trim()).filter(p => p)
-        if (parts.length <= 1) {
-          return <span>{parts[0] || record.UnitName}</span>
-        }
-        // Tất cả trừ phần tử cuối hiển thị chữ xám nhỏ
-        const ancestors = parts.slice(0, -1)
-        const leaf = parts[parts.length - 1]
-        return (
-          <div style={{ lineHeight: 1.3 }}>
-            <div style={{ fontSize: 11, color: "#8c8c8c" }}>
-              {ancestors.join(", ")}
-            </div>
-            <div>{leaf}</div>
-          </div>
-        )
-      },
+      width: 200,
     },
     {
       title: "Chức vụ",
@@ -1101,6 +1076,7 @@ export default function ImportSoldiersPage() {
                   { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
                   { title: "Đến ngày", dataIndex: "toDate", width: 120 },
                   { title: "Đơn vị/Chức vụ", dataIndex: "description", width: 300 },
+                  { title: "Mã cấp bậc", dataIndex: "rankID", width: 120 },
                   { title: "Cấp bậc", dataIndex: "rankName", width: 120 },
                   { title: "Chức vụ Đảng", dataIndex: "partyPosition", width: 150 },
                 ]}

@@ -39,8 +39,6 @@ import {
   DownloadOutlined,
   InboxOutlined,
   ArrowRightOutlined,
-  PlusCircleOutlined,
-  EditOutlined,
 } from "@ant-design/icons"
 import { PageLayout } from "@/components/page-layout"
 import { useAuth } from "@/components/auth-provider"
@@ -59,7 +57,6 @@ interface SoldierImportRow {
   FullName: string
   UnitID: string // Mã đơn vị
   UnitName: string // Tên đơn vị (không lưu DB)
-  UnitFullPath?: string // Đường dẫn đầy đủ (VD: "Quân khu 7,Sư đoàn 5,Phòng Tham mưu")
   Position: string
   RankID: string // Mã cấp bậc
   RankName: string // Tên cấp bậc (không lưu DB)
@@ -92,7 +89,6 @@ interface SoldierImportRow {
   Status: "valid" | "warning" | "error"
   errors: string[]
   warnings: string[]
-  isExisting?: boolean // true nếu Mã QN đã tồn tại trên hệ thống (cập nhật)
   // Dữ liệu từ các sheet khác
   FamilyMembers?: FamilyMemberRow[]
   WorkProcesses?: WorkProcessRow[]
@@ -164,12 +160,9 @@ export default function ImportSoldiersPage() {
 
   // File data
   const [uploadedFile, setUploadedFile] = useState<File | null>(null)
-  const [importData, setImportData] = useState<SoldierImportRow[]>([]) // Danh sách thêm mới
-  const [updateData, setUpdateData] = useState<SoldierImportRow[]>([]) // Danh sách cập nhật
+  const [importData, setImportData] = useState<SoldierImportRow[]>([])
   const [summary, setSummary] = useState<ImportSummary | null>(null)
   const [errors, setErrors] = useState<ValidationError[]>([])
-  const [checkingExisting, setCheckingExisting] = useState(false)
-  const [userHierarchyPath, setUserHierarchyPath] = useState<string>("")
 
   // Redirect nếu chưa đăng nhập
   useEffect(() => {
@@ -293,9 +286,9 @@ export default function ImportSoldiersPage() {
   // FILE UPLOAD & VALIDATION
   // ============================================================
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileUpload = (file: File) => {
     const reader = new FileReader()
-    reader.onload = async (e) => {
+    reader.onload = (e) => {
       try {
         const data = new Uint8Array(e.target?.result as ArrayBuffer)
         const workbook = XLSX.read(data, { type: "array" })
@@ -393,8 +386,12 @@ export default function ImportSoldiersPage() {
           })
         }
 
-        // 5. Parse dữ liệu (chưa validate bắt buộc)
+        // 5. Parse và validate dữ liệu
         const parsedData: SoldierImportRow[] = []
+        const validationErrors: ValidationError[] = []
+        let validCount = 0
+        let warningCount = 0
+        let errorCount = 0
 
         basicRows.forEach((row, index) => {
           const rowNumber = index + 3 // +3 vì có 2 dòng header
@@ -445,88 +442,35 @@ export default function ImportSoldiersPage() {
             Status: "valid",
             errors: [],
             warnings: [],
-            isExisting: false,
             // Gộp dữ liệu từ các sheet khác theo SoldierID
             FamilyMembers: familyBySoldierID.get(soldierID) || [],
             WorkProcesses: workBySoldierID.get(soldierID) || [],
             TrainingProcesses: trainingBySoldierID.get(soldierID) || [],
           }
 
-          parsedData.push(soldier)
-        })
-
-        // 6. Lấy tên đơn vị từ DB và kiểm tra các Mã QN đã tồn tại
-        setCheckingExisting(true)
-        let existingIdSet = new Set<string>()
-        
-        // 6a. Lấy tên đơn vị từ database và hierarchy path để validate
-        try {
-          const unitIdsToResolve = Array.from(new Set(
-            parsedData.map(s => s.UnitID).filter(id => id.length > 0)
-          ))
-          
-          if (unitIdsToResolve.length > 0) {
-            const unitResponse = await fetch("/api/units/resolve-names", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitIds: unitIdsToResolve }),
-            })
-            const unitResult = await unitResponse.json()
-            if (unitResult.success && unitResult.data?.unitNames) {
-              const unitNameMap = unitResult.data.unitNames
-              const unitFullPathMap = unitResult.data.unitFullPaths || {}
-              const unitHierarchyPathMap = unitResult.data.unitHierarchyPaths || {}
-              // Cập nhật UnitName, UnitFullPath từ DB cho từng soldier
-              parsedData.forEach(soldier => {
-                if (soldier.UnitID && unitNameMap[soldier.UnitID]) {
-                  soldier.UnitName = unitNameMap[soldier.UnitID]
-                  soldier.UnitFullPath = unitFullPathMap[soldier.UnitID]
-                }
-              })
-              // Lưu user's hierarchy path (lấy từ đơn vị đầu tiên để so sánh)
-              // Thực tế cần lấy từ user's unit, nhưng ở đây ta sẽ validate ở backend
-            }
+          // Validation các field bắt buộc
+          if (!soldier.SoldierID) {
+            soldier.errors.push("Thiếu mã quân nhân")
+            validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
           }
-        } catch (err) {
-          console.error("Lỗi khi lấy tên đơn vị:", err)
-        }
-        
-        // 6b. Kiểm tra Mã QN đã tồn tại
-        try {
-          const soldierIdsToCheck = parsedData
-            .map(s => s.SoldierID)
-            .filter(id => id.length > 0)
-          
-          if (soldierIdsToCheck.length > 0) {
-            const checkResponse = await fetch("/api/soldiers/check-existing", {
-              method: "POST",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ soldierIds: soldierIdsToCheck }),
-            })
-            const checkResult = await checkResponse.json()
-            if (checkResult.success && checkResult.data?.existingIds) {
-              existingIdSet = new Set(checkResult.data.existingIds)
-            }
+          if (!soldier.FullName) {
+            soldier.errors.push("Thiếu họ tên")
+            validationErrors.push({ rowNumber, message: "Thiếu họ tên", field: "FullName" })
           }
-        } catch (err) {
-          console.error("Lỗi khi kiểm tra Mã QN tồn tại:", err)
-        }
-        setCheckingExisting(false)
+          if (!soldier.UnitID) {
+            soldier.errors.push("Thiếu mã đơn vị")
+            validationErrors.push({ rowNumber, message: "Thiếu mã đơn vị", field: "UnitID" })
+          }
+          if (!soldier.RankID) {
+            soldier.errors.push("Thiếu mã cấp bậc")
+            validationErrors.push({ rowNumber, message: "Thiếu mã cấp bậc", field: "RankID" })
+          }
+          if (!soldier.CitizenID) {
+            soldier.errors.push("Thiếu số CCCD")
+            validationErrors.push({ rowNumber, message: "Thiếu số CCCD", field: "CitizenID" })
+          }
 
-        // 7. Validate và phân nhóm dữ liệu
-        const validationErrors: ValidationError[] = []
-        const newData: SoldierImportRow[] = []
-        const updateList: SoldierImportRow[] = []
-        let validCount = 0
-        let warningCount = 0
-        let errorCount = 0
-
-        parsedData.forEach((soldier) => {
-          const { rowNumber } = soldier
-          const isExisting = existingIdSet.has(soldier.SoldierID)
-          soldier.isExisting = isExisting
-
-          // Date validation (luôn kiểm tra format cho cả thêm mới và cập nhật)
+          // Date validation
           const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
           if (soldier.DateOfBirth && !dateRegex.test(soldier.DateOfBirth)) {
             soldier.errors.push("Ngày sinh không đúng định dạng (DD/MM/YYYY)")
@@ -535,37 +479,6 @@ export default function ImportSoldiersPage() {
           if (soldier.EnlistmentDate && !dateRegex.test(soldier.EnlistmentDate)) {
             soldier.errors.push("Ngày nhập ngũ không đúng định dạng (DD/MM/YYYY)")
             validationErrors.push({ rowNumber, message: "Ngày nhập ngũ sai định dạng", field: "EnlistmentDate", value: soldier.EnlistmentDate })
-          }
-
-          if (isExisting) {
-            // Cập nhật: KHÔNG kiểm tra bắt buộc, chỉ cần có Mã QN
-            if (!soldier.SoldierID) {
-              soldier.errors.push("Thiếu mã quân nhân")
-              validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
-            }
-            soldier.warnings.push("Mã QN đã tồn tại - sẽ cập nhật thông tin")
-          } else {
-            // Thêm mới: kiểm tra các field bắt buộc
-            if (!soldier.SoldierID) {
-              soldier.errors.push("Thiếu mã quân nhân")
-              validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
-            }
-            if (!soldier.FullName) {
-              soldier.errors.push("Thiếu họ tên")
-              validationErrors.push({ rowNumber, message: "Thiếu họ tên", field: "FullName" })
-            }
-            if (!soldier.UnitID) {
-              soldier.errors.push("Thiếu mã đơn vị")
-              validationErrors.push({ rowNumber, message: "Thiếu mã đơn vị", field: "UnitID" })
-            }
-            if (!soldier.RankID) {
-              soldier.errors.push("Thiếu mã cấp bậc")
-              validationErrors.push({ rowNumber, message: "Thiếu mã cấp bậc", field: "RankID" })
-            }
-            if (!soldier.CitizenID) {
-              soldier.errors.push("Thiếu số CCCD")
-              validationErrors.push({ rowNumber, message: "Thiếu số CCCD", field: "CitizenID" })
-            }
           }
 
           // Set status
@@ -580,17 +493,11 @@ export default function ImportSoldiersPage() {
             validCount++
           }
 
-          // Phân nhóm
-          if (isExisting) {
-            updateList.push(soldier)
-          } else {
-            newData.push(soldier)
-          }
+          parsedData.push(soldier)
         })
 
         setUploadedFile(file)
-        setImportData(newData)
-        setUpdateData(updateList)
+        setImportData(parsedData)
         setErrors(validationErrors)
         setSummary({
           totalRows: basicRows.length,
@@ -603,8 +510,7 @@ export default function ImportSoldiersPage() {
         })
 
         setCurrentStep(1)
-        const updateMsg = updateList.length > 0 ? `, ${updateList.length} cập nhật` : ""
-        message.success(`Đã tải file: ${basicRows.length} quân nhân (${newData.length} thêm mới${updateMsg})`)
+        message.success(`Đã tải file: ${basicRows.length} quân nhân, ${familyBySoldierID.size} thân nhân, ${workBySoldierID.size} quá trình công tác, ${trainingBySoldierID.size} quá trình đào tạo`)
       } catch (error) {
         console.error("Lỗi khi đọc file Excel:", error)
         message.error("Lỗi khi đọc file Excel")
@@ -629,11 +535,10 @@ export default function ImportSoldiersPage() {
     setImporting(true)
     try {
       // Lọc bỏ các dòng lỗi
-      const validNewData = importData.filter((row) => row.Status !== "error")
-      const validUpdateData = updateData.filter((row) => row.Status !== "error")
+      const validData = importData.filter((row) => row.Status !== "error")
 
-      // Helper để map dữ liệu gửi lên API
-      const mapSoldierPayload = (row: SoldierImportRow) => ({
+      // Chuẩn bị dữ liệu gửi lên API
+      const soldiersPayload = validData.map((row) => ({
         SoldierID: row.SoldierID,
         FullName: row.FullName,
         UnitID: row.UnitID,
@@ -692,18 +597,14 @@ export default function ImportSoldiersPage() {
           TrainingType: t.TrainingType,
           Certificate: t.Certificate,
         })),
-      })
-
-      const newSoldiersPayload = validNewData.map(mapSoldierPayload)
-      const updateSoldiersPayload = validUpdateData.map(mapSoldierPayload)
+      }))
 
       // Gọi API import
       const response = await fetch("/api/soldiers/import", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          soldiers: newSoldiersPayload,
-          updateSoldiers: updateSoldiersPayload,
+          soldiers: soldiersPayload,
           userId: user.userId,
         }),
       })
@@ -711,42 +612,29 @@ export default function ImportSoldiersPage() {
       const result = await response.json()
 
       if (result.success) {
-        const { success, failed, updateSuccess, updateFailed, results, updateResults } = result.data
+        const { success, failed, results } = result.data
         
         // Cập nhật summary với kết quả thực tế
-        const totalSuccess = (success || 0) + (updateSuccess || 0)
-        const totalFailed = (failed || 0) + (updateFailed || 0)
         setSummary((prev) => prev ? {
           ...prev,
-          validRows: totalSuccess,
-          errorRows: totalFailed,
+          validRows: success,
+          errorRows: failed,
         } : prev)
 
         // Hiển thị thông báo chi tiết
-        const errorMessages: string[] = []
-        if (failed > 0 && results) {
-          results
+        if (failed > 0) {
+          const errorMessages = results
             .filter((r: any) => !r.success)
-            .slice(0, 3)
-            .forEach((r: any) => errorMessages.push(`Thêm mới dòng ${r.rowNumber}: ${r.error}`))
-        }
-        if (updateFailed > 0 && updateResults) {
-          updateResults
-            .filter((r: any) => !r.success)
-            .slice(0, 3)
-            .forEach((r: any) => errorMessages.push(`Cập nhật dòng ${r.rowNumber}: ${r.error}`))
-        }
-        
-        if (totalFailed > 0) {
+            .slice(0, 5)
+            .map((r: any) => `Dòng ${r.rowNumber}: ${r.error}`)
+            .join("\n")
+          
           message.warning(
-            `Đã xử lý ${totalSuccess} quân nhân. ${totalFailed} thất bại:\n${errorMessages.join("\n")}`,
+            `Đã nhập ${success} quân nhân. ${failed} thất bại:\n${errorMessages}`,
             10
           )
         } else {
-          const parts: string[] = []
-          if (success > 0) parts.push(`thêm mới ${success}`)
-          if (updateSuccess > 0) parts.push(`cập nhật ${updateSuccess}`)
-          message.success(`Đã ${parts.join(" và ")} quân nhân thành công`)
+          message.success(`Đã nhập thành công ${success} quân nhân vào hệ thống`)
         }
 
         setCurrentStep(3)
@@ -834,32 +722,24 @@ export default function ImportSoldiersPage() {
       width: 140,
     },
     {
+      title: "Mã đơn vị",
+      dataIndex: "UnitID",
+      width: 150,
+    },
+    {
       title: "Đơn vị",
       dataIndex: "UnitName",
-      width: 250,
-      render: (_: string, record: SoldierImportRow) => {
-        const fullPath = record.UnitFullPath || record.UnitName
-        const parts = fullPath.split(",").map(p => p.trim()).filter(p => p)
-        if (parts.length <= 1) {
-          return <span>{parts[0] || record.UnitName}</span>
-        }
-        // Tất cả trừ phần tử cuối hiển thị chữ xám nhỏ
-        const ancestors = parts.slice(0, -1)
-        const leaf = parts[parts.length - 1]
-        return (
-          <div style={{ lineHeight: 1.3 }}>
-            <div style={{ fontSize: 11, color: "#8c8c8c" }}>
-              {ancestors.join(", ")}
-            </div>
-            <div>{leaf}</div>
-          </div>
-        )
-      },
+      width: 200,
     },
     {
       title: "Chức vụ",
       dataIndex: "Position",
       width: 150,
+    },
+    {
+      title: "Mã cấp bậc",
+      dataIndex: "RankID",
+      width: 120,
     },
     {
       title: "Cấp bậc",
@@ -894,6 +774,11 @@ export default function ImportSoldiersPage() {
     {
       title: "Tôn giáo",
       dataIndex: "Religion",
+      width: 120,
+    },
+    {
+      title: "Mã TTHN",
+      dataIndex: "MaritalStatusID",
       width: 120,
     },
     {
@@ -1026,146 +911,6 @@ export default function ImportSoldiersPage() {
     </Row>
   )
 
-  // Helper: render 4 sub-tabs cho một nhóm dữ liệu (thêm mới hoặc cập nhật)
-  const renderSubTabs = (dataList: SoldierImportRow[]) => {
-    const totalFamily = dataList.reduce((sum, row) => sum + (row.FamilyMembers?.length || 0), 0)
-    const totalWork = dataList.reduce((sum, row) => sum + (row.WorkProcesses?.length || 0), 0)
-    const totalTraining = dataList.reduce((sum, row) => sum + (row.TrainingProcesses?.length || 0), 0)
-
-    return (
-      <Tabs
-        defaultActiveKey="soldiers"
-        items={[
-          {
-            key: "soldiers",
-            label: `Thông tin chiến sĩ (${dataList.length})`,
-            children: (
-              <Table
-                rowKey="rowNumber"
-                columns={previewColumns}
-                dataSource={dataList}
-                pagination={false}
-                scroll={{ x: 4000 }}
-                size="small"
-              />
-            )
-          },
-          {
-            key: "family",
-            label: `Thân nhân (${totalFamily})`,
-            children: dataList.some(row => row.FamilyMembers && row.FamilyMembers.length > 0) ? (
-              <Table
-                rowKey={(record, index) => `${record.soldierID}-${index}`}
-                columns={[
-                  { title: "Mã QN", dataIndex: "soldierID", width: 100 },
-                  { title: "Quan hệ", dataIndex: "relationship", width: 120 },
-                  { title: "Họ và tên", dataIndex: "fullName", width: 180 },
-                  { title: "Ngày sinh", dataIndex: "dateOfBirth", width: 120 },
-                  { title: "Nghề nghiệp", dataIndex: "occupation", width: 150 },
-                  { title: "Nơi công tác", dataIndex: "workplace", width: 200 },
-                  { title: "SĐT", dataIndex: "phoneNumber", width: 120 },
-                  { title: "Địa chỉ", dataIndex: "address", width: 200 },
-                  { title: "Phụ thuộc", dataIndex: "isDependent", width: 100, render: (v: boolean) => v ? "Có" : "Không" },
-                ]}
-                dataSource={dataList.flatMap(row =>
-                  (row.FamilyMembers || []).map(member => ({
-                    soldierID: row.SoldierID,
-                    relationship: member.Relationship,
-                    fullName: member.FullName,
-                    dateOfBirth: member.DateOfBirth,
-                    occupation: member.Occupation,
-                    workplace: member.Workplace,
-                    phoneNumber: member.PhoneNumber,
-                    address: member.Address,
-                    isDependent: member.IsDependent,
-                  }))
-                )}
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: 1200 }}
-                size="small"
-              />
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
-                Không có dữ liệu thân nhân
-              </div>
-            )
-          },
-          {
-            key: "work",
-            label: `Quá trình công tác (${totalWork})`,
-            children: dataList.some(row => row.WorkProcesses && row.WorkProcesses.length > 0) ? (
-              <Table
-                rowKey={(record, index) => `${record.soldierID}-${index}`}
-                columns={[
-                  { title: "Mã QN", dataIndex: "soldierID", width: 100 },
-                  { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
-                  { title: "Đến ngày", dataIndex: "toDate", width: 120 },
-                  { title: "Đơn vị/Chức vụ", dataIndex: "description", width: 300 },
-                  { title: "Cấp bậc", dataIndex: "rankName", width: 120 },
-                  { title: "Chức vụ Đảng", dataIndex: "partyPosition", width: 150 },
-                ]}
-                dataSource={dataList.flatMap(row =>
-                  (row.WorkProcesses || []).map(work => ({
-                    soldierID: row.SoldierID,
-                    fromDate: work.FromDate,
-                    toDate: work.ToDate,
-                    description: work.Description,
-                    rankID: work.RankID,
-                    rankName: work.RankName,
-                    partyPosition: work.PartyPosition,
-                  }))
-                )}
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: 1000 }}
-                size="small"
-              />
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
-                Không có dữ liệu quá trình công tác
-              </div>
-            )
-          },
-          {
-            key: "training",
-            label: `Quá trình đào tạo (${totalTraining})`,
-            children: dataList.some(row => row.TrainingProcesses && row.TrainingProcesses.length > 0) ? (
-              <Table
-                rowKey={(record, index) => `${record.soldierID}-${index}`}
-                columns={[
-                  { title: "Mã QN", dataIndex: "soldierID", width: 100 },
-                  { title: "Tên trường", dataIndex: "schoolName", width: 200 },
-                  { title: "Ngành học", dataIndex: "majorName", width: 180 },
-                  { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
-                  { title: "Đến ngày", dataIndex: "toDate", width: 120 },
-                  { title: "Hình thức", dataIndex: "trainingType", width: 150 },
-                  { title: "Bằng/Chứng chỉ", dataIndex: "certificate", width: 150 },
-                ]}
-                dataSource={dataList.flatMap(row =>
-                  (row.TrainingProcesses || []).map(training => ({
-                    soldierID: row.SoldierID,
-                    schoolName: training.SchoolName,
-                    majorName: training.MajorName,
-                    fromDate: training.FromDate,
-                    toDate: training.ToDate,
-                    trainingType: training.TrainingType,
-                    certificate: training.Certificate,
-                  }))
-                )}
-                pagination={{ pageSize: 10 }}
-                scroll={{ x: 1000 }}
-                size="small"
-              />
-            ) : (
-              <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
-                Không có dữ liệu quá trình đào tạo
-              </div>
-            )
-          }
-        ]}
-      />
-    )
-  }
-
   const renderStep2 = () => (
     <Row gutter={24}>
       <Col span={16}>
@@ -1220,19 +965,7 @@ export default function ImportSoldiersPage() {
             </Col>
           </Row>
 
-          {/* Thống kê thêm mới / cập nhật */}
-          <div style={{ marginTop: 16, display: "flex", gap: 16 }}>
-            <Tag icon={<PlusCircleOutlined />} color="blue" style={{ fontSize: 13, padding: "4px 12px" }}>
-              Thêm mới: {importData.length} quân nhân
-            </Tag>
-            {updateData.length > 0 && (
-              <Tag icon={<EditOutlined />} color="orange" style={{ fontSize: 13, padding: "4px 12px" }}>
-                Cập nhật: {updateData.length} quân nhân
-              </Tag>
-            )}
-          </div>
-
-          <div style={{ marginTop: 16 }}>
+          <div style={{ marginTop: 24 }}>
             <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 8 }}>
               <Text>Tỷ lệ hợp lệ</Text>
               <Text strong>
@@ -1247,41 +980,138 @@ export default function ImportSoldiersPage() {
           </div>
         </Card>
 
-        <Card title={`Xem trước dữ liệu (${importData.length + updateData.length} dòng)`} style={{ borderRadius: 8 }}>
-          {updateData.length > 0 ? (
-            // Có cả thêm mới và cập nhật -> hiển thị 2 tab lớn
-            <Tabs
-              defaultActiveKey="add"
-              type="card"
-              items={[
-                {
-                  key: "add",
-                  label: (
-                    <span>
-                      <PlusCircleOutlined style={{ marginRight: 6 }} />
-                      Thêm chiến sĩ ({importData.length})
-                    </span>
-                  ),
-                  children: importData.length > 0
-                    ? renderSubTabs(importData)
-                    : <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>Không có dữ liệu thêm mới</div>
-                },
-                {
-                  key: "update",
-                  label: (
-                    <span>
-                      <EditOutlined style={{ marginRight: 6 }} />
-                      Cập nhật chiến sĩ ({updateData.length})
-                    </span>
-                  ),
-                  children: renderSubTabs(updateData)
-                }
-              ]}
-            />
-          ) : (
-            // Chỉ có thêm mới
-            renderSubTabs(importData)
-          )}
+        <Card title={`Xem trước dữ liệu (${Math.min(10, importData.length)} dòng đầu tiên)`} style={{ borderRadius: 8 }}>
+          <Tabs 
+            defaultActiveKey="soldiers"
+            items={[
+              {
+                key: "soldiers",
+                label: `Thông tin chiến sĩ (${importData.length})`,
+                children: (
+                  <Table
+                    rowKey="rowNumber"
+                    columns={previewColumns}
+                    dataSource={importData.slice(0, 10)}
+                    pagination={false}
+                    scroll={{ x: 4000 }}
+                    size="small"
+                  />
+                )
+              },
+              {
+                key: "family",
+                label: `Thân nhân (${importData.reduce((sum, row) => sum + (row.FamilyMembers?.length || 0), 0)})`,
+                children: importData.some(row => row.FamilyMembers && row.FamilyMembers.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Quan hệ", dataIndex: "relationship", width: 120 },
+                      { title: "Họ và tên", dataIndex: "fullName", width: 180 },
+                      { title: "Ngày sinh", dataIndex: "dateOfBirth", width: 120 },
+                      { title: "Nghề nghiệp", dataIndex: "occupation", width: 150 },
+                      { title: "Nơi công tác", dataIndex: "workplace", width: 200 },
+                      { title: "SĐT", dataIndex: "phoneNumber", width: 120 },
+                      { title: "Địa chỉ", dataIndex: "address", width: 200 },
+                      { title: "Phụ thuộc", dataIndex: "isDependent", width: 100, render: (v: boolean) => v ? "Có" : "Không" },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.FamilyMembers || []).map(member => ({
+                        soldierID: row.SoldierID,
+                        relationship: member.Relationship,
+                        fullName: member.FullName,
+                        dateOfBirth: member.DateOfBirth,
+                        occupation: member.Occupation,
+                        workplace: member.Workplace,
+                        phoneNumber: member.PhoneNumber,
+                        address: member.Address,
+                        isDependent: member.IsDependent,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1200 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu thân nhân
+                  </div>
+                )
+              },
+              {
+                key: "work",
+                label: `Quá trình công tác (${importData.reduce((sum, row) => sum + (row.WorkProcesses?.length || 0), 0)})`,
+                children: importData.some(row => row.WorkProcesses && row.WorkProcesses.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
+                      { title: "Đến ngày", dataIndex: "toDate", width: 120 },
+                      { title: "Đơn vị/Chức vụ", dataIndex: "description", width: 300 },
+                      { title: "Mã cấp bậc", dataIndex: "rankID", width: 120 },
+                      { title: "Cấp bậc", dataIndex: "rankName", width: 120 },
+                      { title: "Chức vụ Đảng", dataIndex: "partyPosition", width: 150 },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.WorkProcesses || []).map(work => ({
+                        soldierID: row.SoldierID,
+                        fromDate: work.FromDate,
+                        toDate: work.ToDate,
+                        description: work.Description,
+                        rankID: work.RankID,
+                        rankName: work.RankName,
+                        partyPosition: work.PartyPosition,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1000 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu quá trình công tác
+                  </div>
+                )
+              },
+              {
+                key: "training",
+                label: `Quá trình đào tạo (${importData.reduce((sum, row) => sum + (row.TrainingProcesses?.length || 0), 0)})`,
+                children: importData.some(row => row.TrainingProcesses && row.TrainingProcesses.length > 0) ? (
+                  <Table
+                    rowKey={(record, index) => `${record.soldierID}-${index}`}
+                    columns={[
+                      { title: "Mã QN", dataIndex: "soldierID", width: 100 },
+                      { title: "Tên trường", dataIndex: "schoolName", width: 200 },
+                      { title: "Ngành học", dataIndex: "majorName", width: 180 },
+                      { title: "Từ ngày", dataIndex: "fromDate", width: 120 },
+                      { title: "Đến ngày", dataIndex: "toDate", width: 120 },
+                      { title: "Hình thức", dataIndex: "trainingType", width: 150 },
+                      { title: "Bằng/Chứng chỉ", dataIndex: "certificate", width: 150 },
+                    ]}
+                    dataSource={importData.flatMap(row => 
+                      (row.TrainingProcesses || []).map(training => ({
+                        soldierID: row.SoldierID,
+                        schoolName: training.SchoolName,
+                        majorName: training.MajorName,
+                        fromDate: training.FromDate,
+                        toDate: training.ToDate,
+                        trainingType: training.TrainingType,
+                        certificate: training.Certificate,
+                      }))
+                    )}
+                    pagination={{ pageSize: 10 }}
+                    scroll={{ x: 1000 }}
+                    size="small"
+                  />
+                ) : (
+                  <div style={{ textAlign: "center", padding: "40px 0", color: "#8c8c8c" }}>
+                    Không có dữ liệu quá trình đào tạo
+                  </div>
+                )
+              }
+            ]}
+          />
         </Card>
       </Col>
 
@@ -1296,16 +1126,6 @@ export default function ImportSoldiersPage() {
               <Text type="secondary">Tổng số dòng:</Text>
               <div style={{ fontWeight: 500 }}>{summary?.totalRows}</div>
             </div>
-            <div>
-              <Text type="secondary">Thêm mới:</Text>
-              <div style={{ fontWeight: 500, color: "#1677ff" }}>{importData.length} quân nhân</div>
-            </div>
-            {updateData.length > 0 && (
-              <div>
-                <Text type="secondary">Cập nhật:</Text>
-                <div style={{ fontWeight: 500, color: "#fa8c16" }}>{updateData.length} quân nhân</div>
-              </div>
-            )}
             <div>
               <Text type="secondary">Hợp lệ:</Text>
               <div style={{ fontWeight: 500, color: "#52c41a" }}>{summary?.validRows}</div>
@@ -1373,110 +1193,82 @@ export default function ImportSoldiersPage() {
     </Row>
   )
 
-  const renderStep3 = () => {
-    const newValidCount = importData.filter(r => r.Status !== "error").length
-    const updateValidCount = updateData.filter(r => r.Status !== "error").length
-    return (
-      <Card style={{ borderRadius: 8 }}>
-        <Alert
-          title="Xác nhận nhập dữ liệu"
-          description={
-            updateData.length > 0
-              ? `Bạn sắp thêm mới ${newValidCount} quân nhân và cập nhật ${updateValidCount} quân nhân. Dữ liệu cảnh báo và lỗi sẽ không được nhập.`
-              : `Bạn sắp nhập ${newValidCount} quân nhân vào hệ thống. Dữ liệu cảnh báo và lỗi sẽ không được nhập.`
-          }
-          type="info"
-          showIcon
-          style={{ marginBottom: 24 }}
-        />
+  const renderStep3 = () => (
+    <Card style={{ borderRadius: 8 }}>
+      <Alert
+        title="Xác nhận nhập dữ liệu"
+        description={`Bạn sắp nhập ${summary?.validRows} quân nhân vào hệ thống. Dữ liệu cảnh báo và lỗi sẽ không được nhập.`}
+        type="info"
+        showIcon
+        style={{ marginBottom: 24 }}
+      />
 
-        <Row gutter={16}>
-          <Col span={updateData.length > 0 ? 6 : 8}>
-            <Card style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
-              <Statistic
-                title="Thêm mới"
-                value={newValidCount}
-                styles={{ content: { color: "#52c41a" } }}
-                suffix="quân nhân"
-              />
-            </Card>
-          </Col>
-          {updateData.length > 0 && (
-            <Col span={6}>
-              <Card style={{ background: "#fff7e6", borderColor: "#ffd591" }}>
-                <Statistic
-                  title="Cập nhật"
-                  value={updateValidCount}
-                  styles={{ content: { color: "#fa8c16" } }}
-                  suffix="quân nhân"
-                />
-              </Card>
-            </Col>
-          )}
-          <Col span={updateData.length > 0 ? 6 : 8}>
-            <Card style={{ background: "#fffbe6", borderColor: "#ffe58f" }}>
-              <Statistic
-                title="Bỏ qua (cảnh báo)"
-                value={summary?.warningRows}
-                styles={{ content: { color: "#faad14" } }}
-                suffix="dòng"
-              />
-            </Card>
-          </Col>
-          <Col span={updateData.length > 0 ? 6 : 8}>
-            <Card style={{ background: "#fff1f0", borderColor: "#ffccc7" }}>
-              <Statistic
-                title="Bỏ qua (lỗi)"
-                value={summary?.errorRows}
-                styles={{ content: { color: "#ff4d4f" } }}
-                suffix="dòng"
-              />
-            </Card>
-          </Col>
-        </Row>
-      </Card>
-    )
-  }
+      <Row gutter={16}>
+        <Col span={8}>
+          <Card style={{ background: "#f6ffed", borderColor: "#b7eb8f" }}>
+            <Statistic
+              title="Sẽ nhập"
+              value={summary?.validRows}
+              styles={{ content: { color: "#52c41a" } }}
+              suffix="quân nhân"
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card style={{ background: "#fffbe6", borderColor: "#ffe58f" }}>
+            <Statistic
+              title="Bỏ qua (cảnh báo)"
+              value={summary?.warningRows}
+              styles={{ content: { color: "#faad14" } }}
+              suffix="dòng"
+            />
+          </Card>
+        </Col>
+        <Col span={8}>
+          <Card style={{ background: "#fff1f0", borderColor: "#ffccc7" }}>
+            <Statistic
+              title="Bỏ qua (lỗi)"
+              value={summary?.errorRows}
+              styles={{ content: { color: "#ff4d4f" } }}
+              suffix="dòng"
+            />
+          </Card>
+        </Col>
+      </Row>
+    </Card>
+  )
 
-  const renderStep4 = () => {
-    const newValidCount = importData.filter(r => r.Status !== "error").length
-    const updateValidCount = updateData.filter(r => r.Status !== "error").length
-    return (
-      <Card style={{ borderRadius: 8, textAlign: "center", padding: "40px 20px" }}>
-        <CheckCircleOutlined style={{ fontSize: 64, color: "#52c41a", marginBottom: 24 }} />
-        <Title level={3} style={{ color: "#52c41a" }}>
-          Nhập dữ liệu thành công!
-        </Title>
-        <Text style={{ fontSize: 16 }}>
-          {updateData.length > 0
-            ? `Đã thêm mới ${newValidCount} và cập nhật ${updateValidCount} quân nhân`
-            : `Đã nhập ${newValidCount} quân nhân vào hệ thống`
-          }
-        </Text>
-        <div style={{ marginTop: 32 }}>
-          <Space>
-            <Button size="large" onClick={() => router.push("/soldiers")}>
-              Về danh sách quân nhân
-            </Button>
-            <Button
-              type="primary"
-              size="large"
-              onClick={() => {
-                setCurrentStep(0)
-                setUploadedFile(null)
-                setImportData([])
-                setUpdateData([])
-                setSummary(null)
-                setErrors([])
-              }}
-            >
-              Import file mới
-            </Button>
-          </Space>
-        </div>
-      </Card>
-    )
-  }
+  const renderStep4 = () => (
+    <Card style={{ borderRadius: 8, textAlign: "center", padding: "40px 20px" }}>
+      <CheckCircleOutlined style={{ fontSize: 64, color: "#52c41a", marginBottom: 24 }} />
+      <Title level={3} style={{ color: "#52c41a" }}>
+        Nhập dữ liệu thành công!
+      </Title>
+      <Text style={{ fontSize: 16 }}>
+        Đã nhập {summary?.validRows} quân nhân vào hệ thống
+      </Text>
+      <div style={{ marginTop: 32 }}>
+        <Space>
+          <Button size="large" onClick={() => router.push("/soldiers")}>
+            Về danh sách quân nhân
+          </Button>
+          <Button
+            type="primary"
+            size="large"
+            onClick={() => {
+              setCurrentStep(0)
+              setUploadedFile(null)
+              setImportData([])
+              setSummary(null)
+              setErrors([])
+            }}
+          >
+            Import file mới
+          </Button>
+        </Space>
+      </div>
+    </Card>
+  )
 
   const steps = [
     { title: "Tải file Excel", content: "Chọn và tải file Excel" },
@@ -1528,7 +1320,7 @@ export default function ImportSoldiersPage() {
               type="primary"
               icon={<ArrowRightOutlined />}
               onClick={() => setCurrentStep(2)}
-              disabled={!summary || (importData.filter(r => r.Status !== "error").length === 0 && updateData.filter(r => r.Status !== "error").length === 0)}
+              disabled={!summary || summary.validRows === 0}
             >
               Tiếp tục
             </Button>
@@ -1539,7 +1331,7 @@ export default function ImportSoldiersPage() {
               icon={<UploadOutlined />}
               onClick={handleImport}
               loading={importing}
-              disabled={!summary || (importData.filter(r => r.Status !== "error").length === 0 && updateData.filter(r => r.Status !== "error").length === 0)}
+              disabled={!summary || summary.validRows === 0}
             >
               Nhập dữ liệu
             </Button>
