@@ -11,7 +11,7 @@ REM ============================================================
 
 set "APP_DIR=C:\QLQD-CUONG\qlqdtvc1 - 3006"
 set "BACKUP_SCRIPT=%APP_DIR%\scripts\backup\backup-all.bat"
-set "BACKUP_DIR=C:\QuanLyQuanLuc_Backups"
+set "BACKUP_DIR=D:\QuanLyQuanLuc_Backups"
 set "LOG_DIR=%BACKUP_DIR%\Logs"
 set "TASK_NAME=QLQD_AutoBackup_Monthly"
 set "RUNNER=%APP_DIR%\scripts\backup\run-auto-backup.bat"
@@ -65,7 +65,7 @@ echo [2/4] Tao runner auto backup...
 >> "%RUNNER%" echo setlocal EnableExtensions EnableDelayedExpansion
 >> "%RUNNER%" echo set "APP_DIR=C:\QLQD-CUONG\qlqdtvc1 - 3006"
 >> "%RUNNER%" echo set "BACKUP_SCRIPT=%%APP_DIR%%\scripts\backup\backup-all.bat"
->> "%RUNNER%" echo set "LOG_DIR=C:\QuanLyQuanLuc_Backups\Logs"
+>> "%RUNNER%" echo set "LOG_DIR=D:\QuanLyQuanLuc_Backups\Logs"
 >> "%RUNNER%" echo if not exist "%%LOG_DIR%%\" mkdir "%%LOG_DIR%%"
 >> "%RUNNER%" echo set "LOG_FILE=%%LOG_DIR%%\auto-backup.log"
 >> "%RUNNER%" echo echo. ^>^> "%%LOG_FILE%%"

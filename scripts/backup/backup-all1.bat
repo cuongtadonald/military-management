@@ -1,4 +1,4 @@
-﻿@echo off
+@echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
 REM ============================================================
@@ -10,7 +10,7 @@ REM APP_DIR duoc tinh tu vi tri scripts\backup
 REM Khong hard-code duong dan project
 REM
 REM RETENTION:
-REM Chi giu 24 bo backup gan nhat
+REM Chi giu 5 bo backup gan nhat
 REM ============================================================
 
 REM ============================================================
@@ -27,7 +27,7 @@ REM ============================================================
 REM 2. BACKUP CONFIG
 REM ============================================================
 
-set "BACKUP_ROOT=D:\QuanLyQuanLuc_Backups"
+set "BACKUP_ROOT=C:\QuanLyQuanLuc_Backups"
 
 set "BACKUP_DB_DIR=%BACKUP_ROOT%\Database"
 set "BACKUP_FILES_DIR=%BACKUP_ROOT%\Files"
@@ -37,7 +37,7 @@ REM ============================================================
 REM SO BAN BACKUP MUON GIU LAI
 REM ============================================================
 
-set "RETENTION_COUNT=24"
+set "RETENTION_COUNT=5"
 
 REM ============================================================
 REM 3. DATABASE CONFIG

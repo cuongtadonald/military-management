@@ -10,12 +10,12 @@ import sql from 'mssql';
 export async function POST(request: NextRequest) {
   try {
     const body = await request.json();
-    const { unitIds, userId } = body as { unitIds: string[]; userId?: string };
+    const { unitIds } = body as { unitIds: string[] };
 
     if (!unitIds || !Array.isArray(unitIds) || unitIds.length === 0) {
       return NextResponse.json({
         success: true,
-        data: { unitNames: {}, unitFullPaths: {}, unitHierarchyPaths: {} }
+        data: { unitNames: {} }
       });
     }
 
@@ -49,34 +49,9 @@ export async function POST(request: NextRequest) {
       });
     }
 
-    // Lấy thông tin user's hierarchy nếu có userId
-    let userHierarchyPath = '';
-    let userUnitName = '';
-    if (userId) {
-      const userResult = await pool.request()
-        .input('userId', sql.VarChar, userId)
-        .query(`
-          SELECT ou.HierarchyPath, ou.UnitName
-          FROM [User] u
-          INNER JOIN OrganizationUnit ou ON u.UnitID = ou.UnitID
-          WHERE u.UserID = @userId
-        `);
-      
-      if (userResult.recordset.length > 0) {
-        userHierarchyPath = userResult.recordset[0].HierarchyPath || '';
-        userUnitName = userResult.recordset[0].UnitName || '';
-      }
-    }
-
     return NextResponse.json({
       success: true,
-      data: { 
-        unitNames, 
-        unitFullPaths, 
-        unitHierarchyPaths,
-        userHierarchyPath,
-        userUnitName
-      }
+      data: { unitNames, unitFullPaths, unitHierarchyPaths }
     });
 
   } catch (error) {

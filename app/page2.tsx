@@ -98,7 +98,7 @@ export default function DashboardOverviewPage() {
   const [rankStats, setRankStats] = useState<RankStat[]>([])
   const [unitStats, setUnitStats] = useState<UnitStat[]>([])
   const [monthlySeries, setMonthlySeries] = useState<{ month: string; total: number; recruited: number; discharged: number }[]>([])
-
+  
   // New states for permission requests and change history
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
   const [changeHistory, setChangeHistory] = useState<ChangeHistoryItem[]>([])
@@ -180,7 +180,7 @@ export default function DashboardOverviewPage() {
   }, [user?.userId])
 
   useEffect(() => { if (!isLoading && !user) router.replace("/login") }, [user, isLoading, router])
-  useEffect(() => {
+  useEffect(() => { 
     if (!isLoading && user) {
       loadStats()
       loadActivities()
@@ -441,8 +441,8 @@ export default function DashboardOverviewPage() {
 
         {/* Yêu cầu cấp quyền & Lịch sử thay đổi */}
         <Col xs={24} lg={10}>
-          <Card
-            style={{ borderRadius: 10, height: "100%" }}
+          <Card 
+            style={{ borderRadius: 10, height: "100%" }} 
             styles={{ body: { padding: "0" } }}
           >
             <div style={{ borderBottom: "1px solid #f0f0f0", padding: "12px 20px 0" }}>
@@ -510,17 +510,17 @@ export default function DashboardOverviewPage() {
                         const statusColor = isPending ? "orange" : isApproved ? "green" : "red"
                         const statusText = isPending ? "Chờ duyệt" : isApproved ? "Đã duyệt" : "Từ chối"
                         const statusIcon = isPending ? <ClockCircleOutlined /> : isApproved ? <CheckCircleOutlined /> : <CloseCircleOutlined />
-
+                        
                         return (
                           <div
                             key={req.ID}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              padding: "10px 12px",
-                              borderRadius: 8,
-                              background: "#f9f9f6",
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: 12, 
+                              padding: "10px 12px", 
+                              borderRadius: 8, 
+                              background: "#f9f9f6", 
                               border: "1px solid #eee",
                               cursor: "pointer",
                               transition: "all 0.2s"
@@ -535,15 +535,15 @@ export default function DashboardOverviewPage() {
                               e.currentTarget.style.borderColor = "#eee"
                             }}
                           >
-                            <div style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 8,
+                            <div style={{ 
+                              width: 36, 
+                              height: 36, 
+                              borderRadius: 8, 
                               background: isPending ? "#fff3e0" : isApproved ? "#e8f5e9" : "#ffebee",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0
+                              display: "flex", 
+                              alignItems: "center", 
+                              justifyContent: "center", 
+                              flexShrink: 0 
                             }}>
                               {statusIcon}
                             </div>
@@ -567,8 +567,8 @@ export default function DashboardOverviewPage() {
                         )
                       })
                     ) : (
-                      <Empty
-                        description="Chưa có yêu cầu nào"
+                      <Empty 
+                        description="Chưa có yêu cầu nào" 
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                         style={{ padding: "40px 0" }}
                       />
@@ -585,17 +585,17 @@ export default function DashboardOverviewPage() {
                         const isChange = item.ChangeType === "CHANGE"
                         const typeColor = isRequest ? "blue" : isChange ? "cyan" : "default"
                         const typeText = isRequest ? "Yêu cầu" : isChange ? "Thay đổi" : item.ChangeType
-
+                        
                         return (
                           <div
                             key={item.HistoryID}
-                            style={{
-                              display: "flex",
-                              alignItems: "center",
-                              gap: 12,
-                              padding: "10px 12px",
-                              borderRadius: 8,
-                              background: "#f9f9f6",
+                            style={{ 
+                              display: "flex", 
+                              alignItems: "center", 
+                              gap: 12, 
+                              padding: "10px 12px", 
+                              borderRadius: 8, 
+                              background: "#f9f9f6", 
                               border: "1px solid #eee",
                               cursor: "pointer",
                               transition: "all 0.2s"
@@ -610,15 +610,15 @@ export default function DashboardOverviewPage() {
                               e.currentTarget.style.borderColor = "#eee"
                             }}
                           >
-                            <div style={{
-                              width: 36,
-                              height: 36,
-                              borderRadius: 8,
+                            <div style={{ 
+                              width: 36, 
+                              height: 36, 
+                              borderRadius: 8, 
                               background: isRequest ? "#e3f2fd" : "#e0f7fa",
-                              display: "flex",
-                              alignItems: "center",
-                              justifyContent: "center",
-                              flexShrink: 0
+                              display: "flex", 
+                              alignItems: "center", 
+                              justifyContent: "center", 
+                              flexShrink: 0 
                             }}>
                               {isRequest ? <KeyOutlined style={{ color: "#1565c0" }} /> : <SyncOutlined style={{ color: "#00796b" }} />}
                             </div>
@@ -642,8 +642,8 @@ export default function DashboardOverviewPage() {
                         )
                       })
                     ) : (
-                      <Empty
-                        description="Chưa có lịch sử nào"
+                      <Empty 
+                        description="Chưa có lịch sử nào" 
                         image={Empty.PRESENTED_IMAGE_SIMPLE}
                         style={{ padding: "40px 0" }}
                       />
@@ -661,9 +661,9 @@ export default function DashboardOverviewPage() {
         {[
           { icon: <UserAddOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Thêm quân nhân", sub: "Nhập hồ sơ mới", onClick: () => router.push("/soldiers") },
           { icon: <UploadOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Nhập Excel", sub: "Import dữ liệu", onClick: () => router.push("/soldiers") },
-          { icon: <BarChartOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Báo cáo", sub: "Xem báo cáo thống kê", onClick: () => { } },
-          { icon: <HistoryOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Lịch sử thay đổi", sub: "Theo dõi thay đổi", onClick: () => router.push("/change-history") },
-          { icon: <FolderOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Tài liệu quân lực", sub: "Quản lý tài liệu", onClick: () => router.push("/documents") },
+          { icon: <BarChartOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Báo cáo", sub: "Xem báo cáo thống kê", onClick: () => {} },
+          { icon: <HistoryOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Lịch sử thay đổi", sub: "Theo dõi thay đổi", onClick: () => {} },
+          { icon: <FolderOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Tài liệu quân lực", sub: "Quản lý tài liệu", onClick: () => {} },
         ].map((item, i) => (
           <Col xs={12} sm={8} md={4} lg={4} key={i} flex={i === 4 ? "auto" : undefined}>
             <Card

@@ -7,7 +7,7 @@ REM ============================================================
 
 set "APP_DIR=C:\QLQD-CUONG\qlqdtvc1 - 3006"
 set "BACKUP_SCRIPT=%APP_DIR%\scripts\backup\backup-all.bat"
-set "LOG_DIR=C:\QuanLyQuanLuc_Backups\Logs"
+set "LOG_DIR=D:\QuanLyQuanLuc_Backups\Logs"
 set "LOG_FILE=%LOG_DIR%\auto-backup.log"
 
 REM ============================================================

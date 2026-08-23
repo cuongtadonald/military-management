@@ -19,7 +19,7 @@ REM ============================================================
 REM BACKUP CONFIG
 REM ============================================================
 
-set "BACKUP_ROOT=C:\QuanLyQuanLuc_Backups"
+set "BACKUP_ROOT=D:\QuanLyQuanLuc_Backups"
 set "BACKUP_FILES_DIR=%BACKUP_ROOT%\Files"
 set "LOG_FILE=%BACKUP_ROOT%\backup.log"
 

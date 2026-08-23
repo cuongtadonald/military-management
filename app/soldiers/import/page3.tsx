@@ -458,7 +458,6 @@ export default function ImportSoldiersPage() {
         // 6. Lấy tên đơn vị từ DB và kiểm tra các Mã QN đã tồn tại
         setCheckingExisting(true)
         let existingIdSet = new Set<string>()
-        let userHierarchyPath = ""
         
         // 6a. Lấy tên đơn vị từ database và hierarchy path để validate
         try {
@@ -470,28 +469,22 @@ export default function ImportSoldiersPage() {
             const unitResponse = await fetch("/api/units/resolve-names", {
               method: "POST",
               headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({ unitIds: unitIdsToResolve, userId: user?.userId }),
+              body: JSON.stringify({ unitIds: unitIdsToResolve }),
             })
             const unitResult = await unitResponse.json()
             if (unitResult.success && unitResult.data?.unitNames) {
               const unitNameMap = unitResult.data.unitNames
               const unitFullPathMap = unitResult.data.unitFullPaths || {}
               const unitHierarchyPathMap = unitResult.data.unitHierarchyPaths || {}
-              userHierarchyPath = unitResult.data.userHierarchyPath || ""
-              const userUnitName = unitResult.data.userUnitName || ""
-              
               // Cập nhật UnitName, UnitFullPath từ DB cho từng soldier
               parsedData.forEach(soldier => {
                 if (soldier.UnitID && unitNameMap[soldier.UnitID]) {
                   soldier.UnitName = unitNameMap[soldier.UnitID]
                   soldier.UnitFullPath = unitFullPathMap[soldier.UnitID]
-                  // Lưu HierarchyPath để validate sau
-                  ;(soldier as any)._unitHierarchyPath = unitHierarchyPathMap[soldier.UnitID] || ""
                 }
               })
-              
-              // Lưu user's hierarchy path để hiển thị thông báo
-              setUserHierarchyPath(userHierarchyPath)
+              // Lưu user's hierarchy path (lấy từ đơn vị đầu tiên để so sánh)
+              // Thực tế cần lấy từ user's unit, nhưng ở đây ta sẽ validate ở backend
             }
           }
         } catch (err) {
@@ -572,21 +565,6 @@ export default function ImportSoldiersPage() {
             if (!soldier.CitizenID) {
               soldier.errors.push("Thiếu số CCCD")
               validationErrors.push({ rowNumber, message: "Thiếu số CCCD", field: "CitizenID" })
-            }
-          }
-
-          // Validate đơn vị theo quyền hạn user (cho cả thêm mới và cập nhật)
-          if (soldier.UnitID && userHierarchyPath) {
-            const soldierUnitHierarchyPath = (soldier as any)._unitHierarchyPath || ""
-            // Kiểm tra: đơn vị của quân nhân phải thuộc cùng cấp hoặc dưới cấp của user
-            // Nếu user là ADMIN thì userHierarchyPath = "" (có quyền tất cả)
-            if (userHierarchyPath && !soldierUnitHierarchyPath.startsWith(userHierarchyPath)) {
-              soldier.errors.push("Đơn vị không thuộc quyền quản lý của bạn")
-              validationErrors.push({ 
-                rowNumber, 
-                message: `Đơn vị "${soldier.UnitName || soldier.UnitID}" không thuộc quyền quản lý của bạn`, 
-                field: "UnitID" 
-              })
             }
           }
 
