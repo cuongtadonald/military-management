@@ -1,0 +1,226 @@
+================================================================================
+  HUONG DAN CAI DAT - HE THONG QUAN LY QUAN NHAN (OFFLINE)
+================================================================================
+
+FILE DA DONG GOI SAN:
+---------------------
+- QLQN_Installer_v1.0.zip (56MB) - Bao gom ca Node.js portable
+- Giai nen file nay la chay duoc, khong can tai them gi!
+
+================================================================================
+  HUONG DAN TUNG BUOC
+================================================================================
+
+BUOC 1: CHUAN BI SQL SERVER (TREN SERVER OFFLINE)
+--------------------------------------------------
+
+1. Mo SQL Server Management Studio (SSMS)
+
+2. Tao login SQL Server:
+   - Vao: Security > Logins > Chuot phai > New Login
+   - Login name: quanluc
+   - Chon: SQL Server authentication
+   - Password: <chuyen sang mat khau manh, vi du: QuanLuc@2026!>
+   - Bỏ chọn: "Enforce password policy"
+   - Vao: Server Roles > Tích: sysadmin
+   - Vao: User Mapping > Map to database: QlyQuanLuc > Tích: db_owner
+   - Nhan OK
+
+3. Bat xac thuc SQL Server:
+   - Chuot phai vao Server > Properties
+   - Chon: Security
+   - Chon: "SQL Server and Windows Authentication mode"
+   - Nhan OK
+
+4. Khoi dong lai SQL Server:
+   - Mo services.msc
+   - Tim: SQL Server (MSSQLSERVER)
+   - Chuot phai > Restart
+
+BUOC 2: CAU HINH FILE .ENV
+---------------------------
+
+1. Giai nen file QLQN_Installer_v1.0.zip vao server
+   (Vi du: C:\QLQN_Installer)
+
+2. Mo file .env trong thu muc QLQN_Installer
+
+3. Sua thong tin:
+   DB_SERVER=localhost          <- IP hoac ten SQL Server
+   DB_NAME=QlyQuanLuc
+   DB_USER=quanluc
+   DB_PASSWORD=QuanLuc@2026!    <- Mat khau ban vua tao o Buoc 1
+   PORT=80
+
+4. Luu file .env
+
+BUOC 3: CAI DAT DATABASE
+-------------------------
+
+1. Mo Command Prompt voi quyen Administrator:
+   - Nhan phim Windows, go: cmd
+   - Chuot phai vao Command Prompt > Run as administrator
+
+2. Di chuyen den thu muc installer:
+   cd C:\QLQN_Installer
+
+3. Chay script cai dat:
+   install.bat
+
+4. Doi script chay:
+   - Se kiem tra ket noi SQL Server
+   - Tu dong tao database QlyQuanLuc
+   - Tu dong tao cac bang
+   - Tu dong chay stored procedures
+   - Tu dong tao Windows Service
+
+5. Khi thay "CAI DAT HOAN TAT!" -> Da xong!
+
+BUOC 4: KHOI DONG UNG DUNG
+----------------------------
+
+Sau khi install.bat chay xong, Windows Service da tu dong chay.
+
+Kiem tra:
+- Mo trinh duyet: http://localhost
+- Dang nhap: admin / 123456
+
+Neu khong tu chay:
+- Chay: start.bat (Run as administrator)
+
+BUOC 5: TRUY CAP TU MAY KHAC
+------------------------------
+
+Tu may khac trong mang noi bo:
+- Mo trinh duyet: http://IP_SERVER
+  (Vi du: http://192.168.1.100)
+
+Lay IP server:
+- Mo cmd, chay: ipconfig
+- Tim: IPv4 Address
+
+================================================================================
+  XU LY SU CO THONG DUNG
+================================================================================
+
+1. LOI: "Khong the ket noi SQL Server"
+   
+   Nguyen nhan:
+   - SQL Server chua chay
+   - Sai ten dang nhap/mat khau
+   - Chua bat SQL Server Authentication
+   
+   Cach sua:
+   - Kiem tra SQL Server dang chay: services.msc
+   - Kiem tra lai .env
+   - Kiem tra Server Properties > Security
+
+2. LOI: "Port 80 dang duoc su dung"
+   
+   Nguyen nhan:
+   - Co chuong trinh khac dang chay port 80 (IIS, Skype, ...)
+   
+   Cach sua:
+   - Chay: netstat -ano | findstr ":80"
+   - Tim PID va tat: taskkill /PID <PID> /F
+   - Hoac doi PORT trong .env sang 8080
+
+3. LOI: "500 Internal Server Error"
+   
+   Nguyen nhan:
+   - Chua chay install.bat
+   - Database chua duoc tao
+   - Sai thong tin ket noi
+   
+   Cach sua:
+   - Chay lai install.bat
+   - Kiem tra database trong SSMS
+   - Xem log trong cmd khi chay start.bat
+
+4. UNG DUNG KHONG TU CHAY KHI KHOI DONG MAY
+   
+   Cach sua:
+   - Mo services.msc
+   - Tim: "Quan Ly Quan Nhan Service"
+   - Chuot phai > Properties
+   - Startup type: Automatic
+   - Nhan Start
+
+================================================================================
+  QUAN LY HE THONG
+================================================================================
+
+DE DUNG UNG DUNG:
+- Chay: stop.bat (Run as administrator)
+
+DE KHOI DONG LAI:
+- Chay: start.bat (Run as administrator)
+
+DE XOA SERVICE:
+- Chay cmd (Admin): sc delete "QLQN_Service"
+
+DE XEM LOG:
+- Xem cua so cmd khi chay start.bat
+- Kiem tra SQL Server logs trong SSMS
+
+DE BACKUP DATABASE:
+- Mo SSMS > Chuot phai QlyQuanLuc > Tasks > Back Up
+
+DE RESTORE DATABASE:
+- Mo SSMS > Chuot phai Databases > Restore Database
+
+================================================================================
+  THONG TIN DANG NHAP MAC DINH
+================================================================================
+
+Tai khoan: admin
+Mat khau: 123456
+
+QUAN TRONG: Doi mat khau ngay sau khi dang nhap lan dau!
+
+Cach doi mat khau:
+1. Dang nhap vao he thong
+2. Vao: He thong > Tai khoan
+3. Chon: Doi mat khau
+4. Nhap mat khau moi
+
+================================================================================
+  THONG TIN KY THUAT
+================================================================================
+
+- Framework: Next.js 16.2.6 (React 19)
+- Database: SQL Server 2019+
+- Node.js: v18.20.4 (da dong goi san)
+- Port mac dinh: 80
+- Ngon ngu: Tieng Viet
+
+Cau truc thu muc:
+QLQN_Installer\
+├── install.bat          <- Chay de cai dat (Run as admin)
+├── start.bat            <- Khoi dong ung dung (Run as admin)
+├── stop.bat             <- Dung ung dung (Run as admin)
+├── .env                 <- SUA THONG TIN TRUOC KHI CHAY
+├── huong-dan.txt        <- Huong dan chi tiet
+├── node-portable\       <- Node.js (DA CO SAN)
+│   └── node.exe
+├── app\                 <- Ung dung da build
+│   ├── .next\
+│   ├── public\
+│   ├── server.js
+│   └── ...
+└── database\            <- Script SQL
+    ├── setup-db.sql     <- Tao database + bang
+    └── W01P0001.sql...  <- Stored procedures
+
+================================================================================
+  HO TRO
+================================================================================
+
+Neu gap su co ma khong tu sua duoc:
+1. Chup man hinh loi
+2. Ghi lai cac buoc da lam
+3. Lien he bo phan IT ho tro
+
+================================================================================
+  BAN QUYEN 2026 - HE THONG QUAN LY QUAN NHAN
+================================================================================
