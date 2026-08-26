@@ -348,7 +348,7 @@ export default function LoginPage() {
             </Form>
 
             {/* Quick login section */}
-            <div style={{ marginTop: 10 }}>
+            {/*<div style={{ marginTop: 10 }}>
               <div style={{ textAlign: "center", marginBottom: 12, position: "relative" }}>
                 <div style={{ borderTop: "1px solid #e8e8e8", position: "relative" }}>
                   <span
@@ -429,7 +429,7 @@ export default function LoginPage() {
                   </button>
                 ))}
               </div>
-            </div>
+            </div>*/}
           </div>
         </div>
       </div>
