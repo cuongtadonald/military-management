@@ -85,26 +85,27 @@ export async function POST(
 
     const pool = await getPool();
 
-    // Sinh FamilyID tự động: FM + SoldierID + số thứ tự
-    // Đếm số thân nhân hiện tại của quân nhân này để tạo số thứ tự
-    const countResult = await pool.request()
-      .input('SoldierID', sql.VarChar, id)
+    // Sinh FamilyID tự động
+    const maxIdResult = await pool.request()
       .query(`
-        SELECT COUNT(*) as cnt FROM SoldierFamily WHERE SoldierID = @SoldierID
+        SELECT MAX(CAST(SUBSTRING(FamilyID, 3, LEN(FamilyID) - 2) AS INT)) as MaxNum
+        FROM SoldierFamily
+        WHERE FamilyID LIKE 'FM%'
       `);
-    const currentCount = countResult.recordset[0]?.cnt || 0;
-    const newFamilyID = `FM${id}${String(currentCount + 1).padStart(3, '0')}`;
+
+    const maxNum = maxIdResult.recordset[0]?.MaxNum || 0;
+    const newFamilyID = `FM${String(maxNum + 1).padStart(4, '0')}`;
 
     await pool.request()
       .input('FamilyID', sql.VarChar, newFamilyID)
       .input('SoldierID', sql.VarChar, id)
-      .input('FullName', sql.NVarChar, body.FullName || '')
-      .input('Relationship', sql.NVarChar, body.Relationship || '')
-      .input('DateOfBirth', sql.Date, body.DateOfBirth || null)
-      .input('Occupation', sql.NVarChar, body.Occupation || null)
-      .input('Workplace', sql.NVarChar, body.Workplace || null)
-      .input('PhoneNumber', sql.VarChar, body.PhoneNumber || null)
-      .input('Address', sql.NVarChar, body.Address || null)
+      .input('FullName', sql.NVarChar, body.FullName)
+      .input('Relationship', sql.NVarChar, body.Relationship)
+      .input('DateOfBirth', sql.Date, body.DateOfBirth)
+      .input('Occupation', sql.NVarChar, body.Occupation)
+      .input('Workplace', sql.NVarChar, body.Workplace)
+      .input('PhoneNumber', sql.VarChar, body.PhoneNumber)
+      .input('Address', sql.NVarChar, body.Address)
       .input('IsDependent', sql.Bit, body.IsDependent ? 1 : 0)
       .query(`
         INSERT INTO SoldierFamily (

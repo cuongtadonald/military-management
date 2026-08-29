@@ -379,7 +379,7 @@ export async function POST(request: NextRequest) {
           // Kiểm tra SoldierID có tồn tại
           const soldierCheck = await pool.request()
             .input('soldierId', sql.VarChar, soldier.SoldierID)
-            .query('SELECT * FROM Soldier WHERE SoldierID = @soldierId');
+            .query('SELECT SoldierID FROM Soldier WHERE SoldierID = @soldierId');
 
           if (soldierCheck.recordset.length === 0) {
             updateResults.push({
@@ -389,8 +389,6 @@ export async function POST(request: NextRequest) {
             });
             continue;
           }
-
-          const oldSoldier = soldierCheck.recordset[0];
 
           // Validate UnitID nếu có cung cấp
           if (soldier.UnitID) {
@@ -591,55 +589,10 @@ export async function POST(request: NextRequest) {
             }
           }
 
-          // Lưu change history cho cập nhật - ghi lại giá trị cũ/mới thực tế
-          const importFieldNames: Record<string, string> = {
-            FullName: 'Họ và tên',
-            DateOfBirth: 'Ngày sinh',
-            Gender: 'Giới tính',
-            CitizenID: 'CCCD/CMND',
-            UnitID: 'Đơn vị',
-            Position: 'Chức vụ',
-            RankID: 'Cấp bậc',
-            Ethnicity: 'Dân tộc',
-            Religion: 'Tôn giáo',
-            MaritalStatusID: 'Tình trạng hôn nhân',
-            EducationLevel: 'Trình độ học vấn',
-            Specialization: 'Chuyên môn',
-            PoliticalLevel: 'Trình độ chính trị',
-            BloodType: 'Nhóm máu',
-            HealthClassification: 'Phân loại sức khỏe',
-            Height: 'Chiều cao',
-            Weight: 'Cân nặng',
-            BloodPressure: 'Huyết áp',
-            Hometown: 'Quê quán',
-            Address: 'Địa chỉ',
-            WardID: 'Phường/Xã',
-            ProvinceID: 'Tỉnh/Thành phố',
-            EnlistmentDate: 'Ngày nhập ngũ',
-            PartyJoinDate: 'Ngày vào Đảng',
-            YouthUnionJoinDate: 'Ngày vào Đoàn',
-            SoldierType: 'Loại quân nhân',
-          };
-
-          for (const field of fieldMap) {
-            const newValue = soldier[field.key];
-            if (newValue !== undefined && newValue !== null && newValue !== '') {
-              const oldValue = oldSoldier[field.column];
-              const oldStr = oldValue != null ? String(oldValue) : null;
-              const newStr = String(newValue);
-              // Chỉ ghi nếu giá trị thực sự thay đổi
-              if (oldStr !== newStr) {
-                const displayName = importFieldNames[field.key] || field.column;
-                changeHistoryDetails.push({
-                  soldierId: soldier.SoldierID,
-                  fieldName: field.column,
-                  fieldDisplayName: displayName,
-                  oldValue: oldStr,
-                  newValue: newStr,
-                });
-              }
-            }
-          }
+          // Lưu change history cho cập nhật
+          changeHistoryDetails.push(
+            { soldierId: soldier.SoldierID, fieldName: 'Import', fieldDisplayName: 'Cập nhật từ Excel', oldValue: null, newValue: 'Update' },
+          );
 
           updateResults.push({ success: true, soldierId: soldier.SoldierID, rowNumber });
 

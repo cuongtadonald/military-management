@@ -314,116 +314,82 @@ export default function ImportSoldiersPage() {
         }
 
         // Skip header rows (row 0 and row 1 are headers)
-        // Giữ lại tất cả dòng có dữ liệu (ít nhất 1 ô có giá trị) để validate Mã QN
-        const basicRows = basicData.slice(2).filter((row) =>
-          row.length > 0 && row.some((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== "")
-        )
+        const basicRows = basicData.slice(2).filter((row) => row.length > 0 && row[0])
         
         // 2. Đọc sheet "Thân nhân" - map theo SoldierID
         const familySheet = workbook.Sheets["Thân nhân"]
         const familyBySoldierID = new Map<string, FamilyMemberRow[]>()
-        const familyMissingSoldierIDErrors: ValidationError[] = []
         if (familySheet) {
           const familyData = XLSX.utils.sheet_to_json(familySheet, { header: 1 }) as any[][]
-          const familyRows = familyData.slice(1).filter((row) =>
-            row.length > 0 && row.some((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== "")
-          )
-          familyRows.forEach((row, rowIndex) => {
+          const familyRows = familyData.slice(1).filter((row) => row.length > 0 && row[0])
+          familyRows.forEach((row) => {
             const soldierID = String(row[0] || "").trim()
-            if (!soldierID) {
-              // Dòng có dữ liệu nhưng thiếu Mã QN
-              const actualRowNumber = rowIndex + 2 // +2 vì 1 dòng header + index bắt đầu từ 0
-              familyMissingSoldierIDErrors.push({
-                rowNumber: actualRowNumber,
-                message: `Sheet "Thân nhân" - Dòng ${actualRowNumber}: Thiếu mã quân nhân`,
-                field: "SoldierID",
-              })
-              return
+            if (soldierID) {
+              const member: FamilyMemberRow = {
+                Relationship: String(row[1] || "").trim(),
+                FullName: String(row[2] || "").trim(),
+                DateOfBirth: convertExcelDate(row[3]), // Convert ngày sinh (có thể là năm hoặc số Excel)
+                Occupation: String(row[4] || "").trim(),
+                Workplace: String(row[5] || "").trim(),
+                PhoneNumber: String(row[6] || "").trim(),
+                Address: String(row[7] || "").trim(),
+                IsDependent: String(row[8] || "").trim() === "1" || String(row[8] || "").trim() === "có",
+              }
+              if (!familyBySoldierID.has(soldierID)) {
+                familyBySoldierID.set(soldierID, [])
+              }
+              familyBySoldierID.get(soldierID)!.push(member)
             }
-            const member: FamilyMemberRow = {
-              Relationship: String(row[1] || "").trim(),
-              FullName: String(row[2] || "").trim(),
-              DateOfBirth: convertExcelDate(row[3]), // Convert ngày sinh (có thể là năm hoặc số Excel)
-              Occupation: String(row[4] || "").trim(),
-              Workplace: String(row[5] || "").trim(),
-              PhoneNumber: String(row[6] || "").trim(),
-              Address: String(row[7] || "").trim(),
-              IsDependent: String(row[8] || "").trim() === "1" || String(row[8] || "").trim() === "có",
-            }
-            if (!familyBySoldierID.has(soldierID)) {
-              familyBySoldierID.set(soldierID, [])
-            }
-            familyBySoldierID.get(soldierID)!.push(member)
           })
         }
 
         // 3. Đọc sheet "Quá trình công tác" - map theo SoldierID
         const workSheet = workbook.Sheets["Quá trình công tác"]
         const workBySoldierID = new Map<string, WorkProcessRow[]>()
-        const workMissingSoldierIDErrors: ValidationError[] = []
         if (workSheet) {
           const workData = XLSX.utils.sheet_to_json(workSheet, { header: 1 }) as any[][]
-          const workRows = workData.slice(2).filter((row) =>
-            row.length > 0 && row.some((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== "")
-          )
-          workRows.forEach((row, rowIndex) => {
+          const workRows = workData.slice(2).filter((row) => row.length > 0 && row[0])
+          workRows.forEach((row) => {
             const soldierID = String(row[0] || "").trim()
-            if (!soldierID) {
-              const actualRowNumber = rowIndex + 3 // +2 header + 1 vì index từ 0
-              workMissingSoldierIDErrors.push({
-                rowNumber: actualRowNumber,
-                message: `Sheet "Quá trình công tác" - Dòng ${actualRowNumber}: Thiếu mã quân nhân`,
-                field: "SoldierID",
-              })
-              return
+            if (soldierID) {
+              const work: WorkProcessRow = {
+                FromDate: convertExcelDate(row[1]), // Convert từ số Excel
+                ToDate: convertExcelDate(row[2]), // Convert từ số Excel
+                Description: String(row[3] || "").trim(),
+                RankID: String(row[4] || "").trim(),
+                RankName: String(row[5] || "").trim(),
+                PartyPosition: String(row[6] || "").trim(),
+              }
+              if (!workBySoldierID.has(soldierID)) {
+                workBySoldierID.set(soldierID, [])
+              }
+              workBySoldierID.get(soldierID)!.push(work)
             }
-            const work: WorkProcessRow = {
-              FromDate: convertExcelDate(row[1]), // Convert từ số Excel
-              ToDate: convertExcelDate(row[2]), // Convert từ số Excel
-              Description: String(row[3] || "").trim(),
-              RankID: String(row[4] || "").trim(),
-              RankName: String(row[5] || "").trim(),
-              PartyPosition: String(row[6] || "").trim(),
-            }
-            if (!workBySoldierID.has(soldierID)) {
-              workBySoldierID.set(soldierID, [])
-            }
-            workBySoldierID.get(soldierID)!.push(work)
           })
         }
 
         // 4. Đọc sheet "Quá trình đào tạo" - map theo SoldierID
         const trainingSheet = workbook.Sheets["Quá trình đào tạo"]
         const trainingBySoldierID = new Map<string, TrainingProcessRow[]>()
-        const trainingMissingSoldierIDErrors: ValidationError[] = []
         if (trainingSheet) {
           const trainingData = XLSX.utils.sheet_to_json(trainingSheet, { header: 1 }) as any[][]
-          const trainingRows = trainingData.slice(2).filter((row) =>
-            row.length > 0 && row.some((cell: any) => cell !== null && cell !== undefined && String(cell).trim() !== "")
-          )
-          trainingRows.forEach((row, rowIndex) => {
+          const trainingRows = trainingData.slice(2).filter((row) => row.length > 0 && row[0])
+          trainingRows.forEach((row) => {
             const soldierID = String(row[0] || "").trim()
-            if (!soldierID) {
-              const actualRowNumber = rowIndex + 3 // +2 header + 1 vì index từ 0
-              trainingMissingSoldierIDErrors.push({
-                rowNumber: actualRowNumber,
-                message: `Sheet "Quá trình đào tạo" - Dòng ${actualRowNumber}: Thiếu mã quân nhân`,
-                field: "SoldierID",
-              })
-              return
+            if (soldierID) {
+              const training: TrainingProcessRow = {
+                SchoolName: String(row[1] || "").trim(),
+                MajorName: String(row[2] || "").trim(),
+                FromDate: convertExcelDate(row[3]), // Convert từ số Excel
+                ToDate: convertExcelDate(row[4]), // Convert từ số Excel
+                TrainingType: String(row[5] || "").trim(),
+                Certificate: String(row[6] || "").trim(),
+              }
+              if (!trainingBySoldierID.has(soldierID)) {
+                trainingBySoldierID.set(soldierID, [])
+              }
+              trainingBySoldierID.get(soldierID)!.push(training)
             }
-            const training: TrainingProcessRow = {
-              SchoolName: String(row[1] || "").trim(),
-              MajorName: String(row[2] || "").trim(),
-              FromDate: convertExcelDate(row[3]), // Convert từ số Excel
-              ToDate: convertExcelDate(row[4]), // Convert từ số Excel
-              TrainingType: String(row[5] || "").trim(),
-              Certificate: String(row[6] || "").trim(),
-            }
-            if (!trainingBySoldierID.has(soldierID)) {
-              trainingBySoldierID.set(soldierID, [])
-            }
-            trainingBySoldierID.get(soldierID)!.push(training)
           })
         }
 
@@ -475,16 +441,7 @@ export default function ImportSoldiersPage() {
             EnlistmentDate: convertExcelDate(row[29]), // Convert từ số Excel
             PartyJoinDate: convertExcelDate(row[30]) || undefined, // Convert từ số Excel
             YouthUnionJoinDate: convertExcelDate(row[31]) || undefined, // Convert từ số Excel
-            PhotoPath: (() => {
-              const photoValue = String(row[32] || "").trim()
-              if (!photoValue) return undefined
-              // Nếu là tên file đơn giản (không chứa / hoặc \), thêm prefix /uploads/soldiers/
-              if (!photoValue.includes('/') && !photoValue.includes('\\')) {
-                return `/uploads/soldiers/${photoValue}`
-              }
-              // Nếu đã là đường dẫn đầy đủ, giữ nguyên
-              return photoValue
-            })(), // Col 32: Link ảnh
+            PhotoPath: String(row[32] || "").trim() || undefined, // Col 32: Link ảnh
             Status: "valid",
             errors: [],
             warnings: [],
@@ -565,12 +522,6 @@ export default function ImportSoldiersPage() {
 
         // 7. Validate và phân nhóm dữ liệu
         const validationErrors: ValidationError[] = []
-
-        // Gộp lỗi thiếu Mã QN từ các sheet phụ (Thân nhân, Quá trình công tác, Quá trình đào tạo)
-        validationErrors.push(...familyMissingSoldierIDErrors)
-        validationErrors.push(...workMissingSoldierIDErrors)
-        validationErrors.push(...trainingMissingSoldierIDErrors)
-
         const newData: SoldierImportRow[] = []
         const updateList: SoldierImportRow[] = []
         let validCount = 0
@@ -586,41 +537,41 @@ export default function ImportSoldiersPage() {
           const dateRegex = /^\d{2}\/\d{2}\/\d{4}$/
           if (soldier.DateOfBirth && !dateRegex.test(soldier.DateOfBirth)) {
             soldier.errors.push("Ngày sinh không đúng định dạng (DD/MM/YYYY)")
-            validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Ngày sinh sai định dạng`, field: "DateOfBirth", value: soldier.DateOfBirth })
+            validationErrors.push({ rowNumber, message: "Ngày sinh sai định dạng", field: "DateOfBirth", value: soldier.DateOfBirth })
           }
           if (soldier.EnlistmentDate && !dateRegex.test(soldier.EnlistmentDate)) {
             soldier.errors.push("Ngày nhập ngũ không đúng định dạng (DD/MM/YYYY)")
-            validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Ngày nhập ngũ sai định dạng`, field: "EnlistmentDate", value: soldier.EnlistmentDate })
+            validationErrors.push({ rowNumber, message: "Ngày nhập ngũ sai định dạng", field: "EnlistmentDate", value: soldier.EnlistmentDate })
           }
 
           if (isExisting) {
             // Cập nhật: KHÔNG kiểm tra bắt buộc, chỉ cần có Mã QN
             if (!soldier.SoldierID) {
               soldier.errors.push("Thiếu mã quân nhân")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu mã quân nhân`, field: "SoldierID" })
+              validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
             }
             soldier.warnings.push("Mã QN đã tồn tại - sẽ cập nhật thông tin")
           } else {
             // Thêm mới: kiểm tra các field bắt buộc
             if (!soldier.SoldierID) {
               soldier.errors.push("Thiếu mã quân nhân")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu mã quân nhân`, field: "SoldierID" })
+              validationErrors.push({ rowNumber, message: "Thiếu mã quân nhân", field: "SoldierID" })
             }
             if (!soldier.FullName) {
               soldier.errors.push("Thiếu họ tên")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu họ tên`, field: "FullName" })
+              validationErrors.push({ rowNumber, message: "Thiếu họ tên", field: "FullName" })
             }
             if (!soldier.UnitID) {
               soldier.errors.push("Thiếu mã đơn vị")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu mã đơn vị`, field: "UnitID" })
+              validationErrors.push({ rowNumber, message: "Thiếu mã đơn vị", field: "UnitID" })
             }
             if (!soldier.RankID) {
               soldier.errors.push("Thiếu mã cấp bậc")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu mã cấp bậc`, field: "RankID" })
+              validationErrors.push({ rowNumber, message: "Thiếu mã cấp bậc", field: "RankID" })
             }
             if (!soldier.CitizenID) {
               soldier.errors.push("Thiếu số CCCD")
-              validationErrors.push({ rowNumber, message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Thiếu số CCCD`, field: "CitizenID" })
+              validationErrors.push({ rowNumber, message: "Thiếu số CCCD", field: "CitizenID" })
             }
           }
 
@@ -633,7 +584,7 @@ export default function ImportSoldiersPage() {
               soldier.errors.push("Đơn vị không thuộc quyền quản lý của bạn")
               validationErrors.push({ 
                 rowNumber, 
-                message: `Sheet "Thông Tin Chiến Sĩ" - Dòng ${rowNumber}: Đơn vị "${soldier.UnitName || soldier.UnitID}" không thuộc quyền quản lý của bạn`, 
+                message: `Đơn vị "${soldier.UnitName || soldier.UnitID}" không thuộc quyền quản lý của bạn`, 
                 field: "UnitID" 
               })
             }
@@ -667,7 +618,7 @@ export default function ImportSoldiersPage() {
           totalRows: basicRows.length,
           validRows: validCount,
           warningRows: warningCount,
-          errorRows: validationErrors.length, // Đếm tổng số lỗi (bao gồm lỗi từ sheet phụ và lỗi cập nhật)
+          errorRows: errorCount,
           fileName: file.name,
           fileSize: formatFileSize(file.size),
           uploadTime: new Date().toLocaleString("vi-VN"),
@@ -1416,10 +1367,13 @@ export default function ImportSoldiersPage() {
                   borderRadius: 4,
                 }}
               >
-                <div style={{ fontSize: 13, color: "#ff4d4f", fontWeight: 500 }}>{error.message}</div>
+                <Text strong style={{ color: "#ff4d4f" }}>
+                  Dòng {error.rowNumber}
+                </Text>
+                <div style={{ fontSize: 13, marginTop: 4 }}>{error.message}</div>
                 {error.value && (
                   <div style={{ fontSize: 12, color: "#8c8c8c", marginTop: 2 }}>
-                    Giá trị: {error.value}
+                    {error.field}: {error.value}
                   </div>
                 )}
               </div>

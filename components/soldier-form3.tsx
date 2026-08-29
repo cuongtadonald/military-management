@@ -73,8 +73,6 @@ interface TrainingProcess {
 const STATUS_OPTIONS = [
   { value: "ST001", label: "Đang tại ngũ" },
   { value: "ST002", label: "Điều chuyển" },
-  { value: "ST005", label: "Đang công tác" },
-  { value: "ST006", label: "Đang đi học" },
   { value: "ST003", label: "Nghỉ hưu" },
   { value: "ST004", label: "Xuất ngũ" },
 ]
@@ -520,72 +518,16 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
         IsDependent: values.IsDependent || false,
       }
 
-      const soldierID = soldier?.SoldierID
-      if (!soldierID) {
-        message.error("Không tìm thấy mã quân nhân")
-        return
-      }
-
       if (editingFamilyIndex !== null) {
-        // Cập nhật thân nhân hiện có - gọi API ngay
-        const existingMember = familyMembers[editingFamilyIndex]
-        if (existingMember.FamilyID) {
-          try {
-            const response = await fetch(`/api/soldiers/${soldierID}/family/${existingMember.FamilyID}`, {
-              method: "PUT",
-              headers: { "Content-Type": "application/json" },
-              body: JSON.stringify({
-                ...member,
-                DateOfBirth: member.DateOfBirth || null,
-              }),
-            })
-            const result = await response.json()
-            if (result.success) {
-              message.success("Đã cập nhật thông tin thân nhân")
-              // Tải lại danh sách thân nhân từ server để đảm bảo đồng bộ
-              await loadFamilyMembers()
-            } else {
-              message.error(result.message || "Lỗi khi cập nhật thân nhân")
-              return
-            }
-          } catch (error) {
-            console.error("Lỗi khi cập nhật thân nhân:", error)
-            message.error("Lỗi khi cập nhật thân nhân")
-            return
-          }
+        const updated = [...familyMembers]
+        updated[editingFamilyIndex] = {
+          ...updated[editingFamilyIndex],
+          ...member,
+          isNew: updated[editingFamilyIndex].isNew,
         }
+        setFamilyMembers(updated)
       } else {
-        // Thêm thân nhân mới - gọi API ngay
-        try {
-          const requestBody = {
-            ...member,
-            DateOfBirth: member.DateOfBirth || null,
-          }
-          console.log('Adding family member for soldier:', soldierID)
-          console.log('Request body:', requestBody)
-          
-          const response = await fetch(`/api/soldiers/${soldierID}/family`, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(requestBody),
-          })
-          
-          const result = await response.json()
-          console.log('API response:', result)
-          
-          if (result.success) {
-            message.success("Đã thêm thân nhân mới")
-            // Tải lại danh sách thân nhân từ server để đảm bảo đồng bộ
-            await loadFamilyMembers()
-          } else {
-            message.error(result.message || "Lỗi khi thêm thân nhân")
-            return
-          }
-        } catch (error) {
-          console.error("Lỗi khi thêm thân nhân:", error)
-          message.error(`Lỗi khi thêm thân nhân: ${error instanceof Error ? error.message : 'Unknown error'}`)
-          return
-        }
+        setFamilyMembers([...familyMembers, { ...member, isNew: true }])
       }
 
       setFamilyModalVisible(false)
@@ -598,35 +540,14 @@ export function SoldierForm({ open, onClose, soldier: soldierProp, initialData, 
     }
   }
 
-  const handleDeleteFamily = async (index: number) => {
+  const handleDeleteFamily = (index: number) => {
     const member = familyMembers[index]
-    const soldierID = soldier?.SoldierID
-    if (!soldierID) {
-      message.error("Không tìm thấy mã quân nhân")
-      return
-    }
-
-    if (member.FamilyID) {
-      // Đã có trong DB - gọi API xóa ngay
-      try {
-        const response = await fetch(`/api/soldiers/${soldierID}/family/${member.FamilyID}`, {
-          method: "DELETE",
-        })
-        const result = await response.json()
-        if (result.success) {
-          message.success("Đã xóa thân nhân")
-          // Tải lại danh sách thân nhân từ server để đảm bảo đồng bộ
-          await loadFamilyMembers()
-        } else {
-          message.error(result.message || "Lỗi khi xóa thân nhân")
-        }
-      } catch (error) {
-        console.error("Lỗi khi xóa thân nhân:", error)
-        message.error("Lỗi khi xóa thân nhân")
-      }
-    } else {
-      // Chưa có trong DB (isNew) - chỉ xóa khỏi state
+    if (member.isNew) {
       setFamilyMembers(familyMembers.filter((_, i) => i !== index))
+    } else {
+      const updated = [...familyMembers]
+      updated[index] = { ...updated[index], isDeleted: true }
+      setFamilyMembers(updated)
     }
   }
 

@@ -467,8 +467,8 @@ export default function SoldierListPage() {
 
   const columns: ColumnsType<SoldierData> = [
     {
-      title: "", key: "checkbox", width: 40, align: "center",
-      render: () => <input type="checkbox" style={{ width: 16, height: 16, cursor: "pointer" }} />,
+      title: "", key: "checkbox", width: 20, align: "center",
+      // render: () => <input type="checkbox" style={{ width: 16, height: 16, cursor: "pointer" }} />,
     },
     {
       title: "Họ và tên", dataIndex: "FullName", key: "FullName", width: 200,
@@ -687,7 +687,7 @@ export default function SoldierListPage() {
       {/* Tabs */}
       <div style={{ display: 'flex', alignItems: 'center', marginBottom: 16 }}>
         <div style={{ marginRight: 24, fontSize: 14, color: '#666' }}>
-          Tổng số chiến sĩ: <strong style={{ color: '#2e5c2e' }}>{totalCount}</strong>
+          Tổng số quân nhân: <strong style={{ color: '#2e5c2e' }}>{totalCount}</strong>
         </div>
         <Tabs
           activeKey={activeTab}
@@ -695,7 +695,7 @@ export default function SoldierListPage() {
           style={{ flex: 1 }}
           items={[
             { key: "active", label: `Đang công tác (${activeCount})` },
-            { key: "discharged", label: `Đã xuất ngũ (${dischargedCount})` },
+            { key: "discharged", label: `Đã xuất ngũ & nghỉ hưu(${dischargedCount})` },
             // { key: "changelog", label: `Báo cáo chờ xử lý (${pendingCount})` },
             // { key: "notification", label: `Gửi thông báo` },
           ]}

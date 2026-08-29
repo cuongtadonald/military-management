@@ -16,13 +16,17 @@ import {
   FileSearchOutlined,
   UserAddOutlined,
   UploadOutlined,
+  BarChartOutlined,
   HistoryOutlined,
   FolderOutlined,
+  ArrowRightOutlined,
+  CalendarOutlined,
   SyncOutlined,
   CheckCircleOutlined,
   ClockCircleOutlined,
   KeyOutlined,
   CloseCircleOutlined,
+  ExclamationCircleOutlined,
 } from "@ant-design/icons"
 
 import { PageLayout } from "@/components/page-layout"
@@ -41,11 +45,8 @@ dayjs.locale("vi")
 
 interface DashboardStats {
   total: number
-  working: number
   active: number
   discharged: number
-  retired: number
-  studying: number
   pending: number
 }
 
@@ -57,7 +58,6 @@ interface RankStat {
 
 interface UnitStat {
   name: string
-  fullPathName: string
   count: number
   color: string
 }
@@ -66,9 +66,7 @@ interface PermissionRequest {
   ID: string
   Title: string
   RequestBy: string
-  RequestByName?: string
   RequesterName?: string
-  UnitName?: string
   StatusID: string
   RequestDate: string
   ApprovedDate?: string
@@ -96,9 +94,10 @@ export default function DashboardOverviewPage() {
   const { user, isLoading } = useAuth()
   const { pendingCount } = useChangeLog()
 
-  const [stats, setStats] = useState<DashboardStats>({ total: 0, working: 0, active: 0, discharged: 0, retired: 0, studying: 0, pending: 0 })
+  const [stats, setStats] = useState<DashboardStats>({ total: 0, active: 0, discharged: 0, pending: 0 })
   const [rankStats, setRankStats] = useState<RankStat[]>([])
   const [unitStats, setUnitStats] = useState<UnitStat[]>([])
+  const [monthlySeries, setMonthlySeries] = useState<{ month: string; total: number; recruited: number; discharged: number }[]>([])
 
   // New states for permission requests and change history
   const [permissionRequests, setPermissionRequests] = useState<PermissionRequest[]>([])
@@ -122,34 +121,34 @@ export default function DashboardOverviewPage() {
         return
       }
 
-      const { totals, rankStats: apiRanks, unitStats: apiUnits, pending } = result.data || {}
+      const { totals, rankStats: apiRanks, unitStats: apiUnits, monthlySeries: apiSeries } = result.data || {}
 
       setStats({
         total: Number(totals?.total || 0),
-        working: Number(totals?.working || 0),
         active: Number(totals?.active || 0),
         discharged: Number(totals?.discharged || 0),
-        retired: Number(totals?.retired || 0),
-        studying: Number(totals?.studying || 0),
-        pending: pendingCount || Number(pending || 0),
+        // Ưu tiên số pending do change-log context trả về (đã có real-time),
+        // fallback sang giá trị từ API nếu context chưa sẵn sàng.
+        pending: pendingCount || Number(totals?.pending || 0),
       })
 
-      // Rank distribution - hiển thị tất cả
-      const rankItems = (apiRanks || []).map((r: any, i: number) => ({
-        name: r.name,
-        count: r.count,
-        color: RANK_PALETTE[i % RANK_PALETTE.length],
-      }))
+      // Rank distribution - lấy tối đa 4 dòng đầu, gộp phần còn lại thành "Khác"
+      const topRanks = (apiRanks || []).slice(0, 4)
+      const otherRanks = (apiRanks || []).slice(4)
+      const otherRankCount = otherRanks.reduce((sum: number, r: any) => sum + (r.count || 0), 0)
+      const rankItems = topRanks.map((r: any, i: number) => ({ name: r.name, count: r.count, color: RANK_PALETTE[i % RANK_PALETTE.length] }))
+      if (otherRankCount > 0) rankItems.push({ name: "Khác", count: otherRankCount, color: RANK_PALETTE[4] })
       setRankStats(rankItems)
 
-      // Unit distribution - hiển thị tất cả, kèm fullPathName
-      const unitItems = (apiUnits || []).map((u: any, i: number) => ({
-        name: u.name,
-        fullPathName: u.fullPathName || u.name,
-        count: u.count,
-        color: UNIT_PALETTE[i % UNIT_PALETTE.length],
-      }))
+      // Unit distribution - tương tự
+      const topUnits = (apiUnits || []).slice(0, 4)
+      const otherUnits = (apiUnits || []).slice(4)
+      const otherUnitCount = otherUnits.reduce((sum: number, u: any) => sum + (u.count || 0), 0)
+      const unitItems = topUnits.map((u: any, i: number) => ({ name: u.name, count: u.count, color: UNIT_PALETTE[i % UNIT_PALETTE.length] }))
+      if (otherUnitCount > 0) unitItems.push({ name: "Khác", count: otherUnitCount, color: UNIT_PALETTE[4] })
       setUnitStats(unitItems)
+
+      setMonthlySeries(apiSeries || [])
     } catch (error) {
       console.error("Lỗi khi tải thống kê:", error)
     }
@@ -206,6 +205,8 @@ export default function DashboardOverviewPage() {
   // COMPUTED
   // ============================================================
 
+  const activePercent = stats.total > 0 ? ((stats.active / stats.total) * 100).toFixed(1) : "0"
+  const dischargedPercent = stats.total > 0 ? ((stats.discharged / stats.total) * 100).toFixed(1) : "0"
   const maxUnitCount = Math.max(...unitStats.map(u => u.count), 1)
 
   // Donut chart calculations
@@ -228,39 +229,73 @@ export default function DashboardOverviewPage() {
       </div>
 
       {/* KPI Cards */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24 }} align="stretch">
-        {[
-          { value: stats.total, label: "Tổng quân nhân", icon: <TeamOutlined style={{ fontSize: 22, color: "#2e7d32" }} />, bg: "#e8f5e9" },
-          { value: stats.active, label: "Đang tại ngũ", icon: <SafetyCertificateOutlined style={{ fontSize: 22, color: "#3949ab" }} />, bg: "#e8eaf6" },
-          { value: stats.working, label: "Đang công tác", icon: <SafetyCertificateOutlined style={{ fontSize: 22, color: "#1565c0" }} />, bg: "#e3f2fd" },
-          { value: stats.discharged, label: "Đã xuất ngũ", icon: <UserDeleteOutlined style={{ fontSize: 22, color: "#ef6c00" }} />, bg: "#fff3e0" },
-          { value: stats.retired, label: "Nghỉ hưu", icon: <UserDeleteOutlined style={{ fontSize: 22, color: "#c62828" }} />, bg: "#fce4ec" },
-          { value: stats.studying, label: "Đang học", icon: <FileSearchOutlined style={{ fontSize: 22, color: "#7b1fa2" }} />, bg: "#f3e5f5" },
-        ].map((item, i) => (
-          <Col xs={12} sm={8} lg={4} key={i} style={{ display: "flex" }}>
-            <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8", width: "100%", height: "100%" }} styles={{ body: { padding: "16px 14px", height: "100%", display: "flex", alignItems: "center" } }}>
-              <div style={{ display: "flex", alignItems: "center", gap: 12, width: "100%" }}>
-                <div style={{ width: 44, height: 44, borderRadius: 12, background: item.bg, display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-                  {item.icon}
-                </div>
-                <div style={{ minWidth: 0 }}>
-                  <div style={{ fontSize: 22, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{item.value}</div>
-                  <div style={{ fontSize: 12, color: "#757575", lineHeight: 1.3, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{item.label}</div>
-                </div>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#e8f5e9", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <TeamOutlined style={{ fontSize: 22, color: "#2e7d32" }} />
               </div>
-            </Card>
-          </Col>
-        ))}
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.total}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Tổng quân nhân</div>
+                <div style={{ fontSize: 11, color: "#2e7d32" }}>100% tổng số quân nhân</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#e3f2fd", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <SafetyCertificateOutlined style={{ fontSize: 22, color: "#1565c0" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.active}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Đang công tác</div>
+                <div style={{ fontSize: 11, color: "#1565c0" }}>{activePercent}% tổng quân nhân</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#fff3e0", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <UserDeleteOutlined style={{ fontSize: 22, color: "#ef6c00" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.discharged}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Đã xuất ngũ</div>
+                <div style={{ fontSize: 11, color: "#ef6c00" }}>{dischargedPercent}% tổng quân nhân</div>
+              </div>
+            </div>
+          </Card>
+        </Col>
+        {/* <Col xs={24} sm={12} lg={6}>
+          <Card style={{ borderRadius: 10, border: "1px solid #e8e8e8" }} styles={{ body: { padding: "18px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 14 }}>
+              <div style={{ width: 48, height: 48, borderRadius: 12, background: "#f3e5f5", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                <FileSearchOutlined style={{ fontSize: 22, color: "#7b1fa2" }} />
+              </div>
+              <div>
+                <div style={{ fontSize: 26, fontWeight: 700, color: "#212121", lineHeight: 1.2 }}>{stats.pending}</div>
+                <div style={{ fontSize: 13, color: "#757575" }}>Báo cáo chờ xử lý</div>
+                <div style={{ fontSize: 11, color: "#7b1fa2" }}>Chờ xử lý</div>
+              </div>
+            </div>
+          </Card>
+        </Col> */}
       </Row>
 
       {/* Charts Row */}
-      <Row gutter={[16, 16]} style={{ marginBottom: 24, alignItems: "stretch" }}>
+      <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
         {/* Donut Chart - Rank Distribution */}
-        <Col xs={24} lg={10} style={{ display: "flex" }}>
-          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo cấp bậc</span>} style={{ borderRadius: 10, width: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
-            <div style={{ display: "flex", gap: 20, alignItems: "flex-start" }}>
+        <Col xs={24} lg={10}>
+          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo cấp bậc</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
+            <div style={{ display: "flex", alignItems: "center", gap: 24 }}>
               {/* CSS Donut */}
-              <div style={{ position: "relative", width: 140, height: 140, flexShrink: 0 }}>
+              <div style={{ position: "relative", width: 160, height: 160, flexShrink: 0 }}>
                 <svg viewBox="0 0 100 100" style={{ transform: "rotate(-90deg)" }}>
                   {(() => {
                     let offset = 0
@@ -279,28 +314,25 @@ export default function DashboardOverviewPage() {
                           strokeWidth="18"
                           strokeDasharray={`${dashLength} ${circumference - dashLength}`}
                           strokeDashoffset={dashOffset}
-                          style={{ cursor: "pointer" }}
-                        >
-                          <title>{rank.name}: {rank.count} ({pct.toFixed(1)}%)</title>
-                        </circle>
+                        />
                       )
                     })
                   })()}
                 </svg>
                 <div style={{ position: "absolute", top: "50%", left: "50%", transform: "translate(-50%, -50%)", textAlign: "center" }}>
-                  <div style={{ fontSize: 20, fontWeight: 700, color: "#212121" }}>{stats.total}</div>
-                  <div style={{ fontSize: 10, color: "#757575" }}>Tổng số</div>
+                  <div style={{ fontSize: 22, fontWeight: 700, color: "#212121" }}>{stats.total}</div>
+                  <div style={{ fontSize: 11, color: "#757575" }}>Tổng số</div>
                 </div>
               </div>
-              {/* Legend - scrollbar nếu dài */}
-              <div style={{ flex: 1, maxHeight: 200, overflowY: "auto", paddingRight: 4 }}>
+              {/* Legend */}
+              <div style={{ flex: 1 }}>
                 {rankStats.map((rank, i) => (
-                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6, padding: "4px 0" }}>
+                  <div key={i} style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 8 }}>
                     <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: rank.color, flexShrink: 0 }} />
-                      <span style={{ fontSize: 12, color: "#424242" }}>{rank.name}</span>
+                      <div style={{ width: 10, height: 10, borderRadius: "50%", background: rank.color }} />
+                      <span style={{ fontSize: 13, color: "#424242" }}>{rank.name}</span>
                     </div>
-                    <span style={{ fontSize: 12, fontWeight: 600, color: "#212121", whiteSpace: "nowrap", marginLeft: 8 }}>
+                    <span style={{ fontSize: 13, fontWeight: 600, color: "#212121" }}>
                       {rank.count} <span style={{ color: "#757575", fontWeight: 400 }}>({((rank.count / totalRank) * 100).toFixed(1)}%)</span>
                     </span>
                   </div>
@@ -311,44 +343,29 @@ export default function DashboardOverviewPage() {
         </Col>
 
         {/* Bar Chart - Unit Distribution */}
-        <Col xs={24} lg={14} style={{ display: "flex" }}>
-          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo đơn vị</span>} style={{ borderRadius: 10, width: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
-            <div style={{ maxHeight: 240, overflowY: "auto", paddingRight: 4 }}>
-              <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
-                {unitStats.map((unit, i) => {
-                  // Parse fullPathName thành parent + child
-                  // Hỗ trợ cả separator " > " và ","
-                  const fullPath = unit.fullPathName || unit.name
-                  const parts = fullPath.includes(" > ") ? fullPath.split(" > ") : fullPath.split(",")
-                  const childName = parts.pop() || fullPath
-                  const parentPath = parts.join(" > ")
-                  return (
-                    <div key={i}>
-                      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-end", marginBottom: 4 }}>
-                        <div style={{ display: "flex", flexDirection: "column", lineHeight: 1.3, minWidth: 0, flex: 1 }}>
-                          {parentPath && <span style={{ fontSize: 10, color: "#8c8c8c", marginBottom: 2 }}>{parentPath}</span>}
-                          <span style={{ fontSize: 12, fontWeight: 600, color: "#3b4019" }}>{childName}</span>
-                        </div>
-                        <span style={{ fontSize: 12, fontWeight: 600, whiteSpace: "nowrap", marginLeft: 12 }}>{unit.count}</span>
-                      </div>
-                      <div style={{ height: 20, background: "#f0f0f0", borderRadius: 5, overflow: "hidden" }}>
-                        {unit.count > 0 && (
-                          <div
-                            style={{
-                              height: "100%",
-                              width: `${(unit.count / maxUnitCount) * 100}%`,
-                              background: `linear-gradient(90deg, ${unit.color}, ${unit.color}dd)`,
-                              borderRadius: 5,
-                              transition: "width 0.5s ease",
-                              minWidth: 16,
-                            }}
-                          />
-                        )}
-                      </div>
-                    </div>
-                  )
-                })}
-              </div>
+        <Col xs={24} lg={14}>
+          <Card title={<span style={{ fontWeight: 600 }}>Thống kê theo đơn vị</span>} style={{ borderRadius: 10, height: "100%" }} styles={{ body: { padding: "16px 20px" } }}>
+            <div style={{ display: "flex", flexDirection: "column", gap: 12, paddingTop: 8 }}>
+              {unitStats.map((unit, i) => (
+                <div key={i}>
+                  <div style={{ display: "flex", justifyContent: "space-between", marginBottom: 4 }}>
+                    <span style={{ fontSize: 13, color: "#424242" }}>{unit.name}</span>
+                    <span style={{ fontSize: 13, fontWeight: 600 }}>{unit.count}</span>
+                  </div>
+                  <div style={{ height: 24, background: "#f0f0f0", borderRadius: 6, overflow: "hidden" }}>
+                    <div
+                      style={{
+                        height: "100%",
+                        width: `${(unit.count / maxUnitCount) * 100}%`,
+                        background: `linear-gradient(90deg, ${unit.color}, ${unit.color}dd)`,
+                        borderRadius: 6,
+                        transition: "width 0.5s ease",
+                        minWidth: 20,
+                      }}
+                    />
+                  </div>
+                </div>
+              ))}
             </div>
           </Card>
         </Col>
@@ -356,21 +373,74 @@ export default function DashboardOverviewPage() {
 
       {/* Line Chart Area + Notifications */}
       <Row gutter={[16, 16]} style={{ marginBottom: 24 }}>
-        {/* Biến động quân nhân theo tháng - TẠM ẨN */}
-        {/* <Col xs={24} lg={14}>
+        {/* Monthly Fluctuation - simplified line chart */}
+        <Col xs={24} lg={14}>
           <Card title={<span style={{ fontWeight: 600 }}>Biến động quân nhân theo tháng</span>} style={{ borderRadius: 10 }} styles={{ body: { padding: "16px 20px" } }}>
             <div style={{ position: "relative", height: 200, borderLeft: "1px solid #e0e0e0", borderBottom: "1px solid #e0e0e0", marginLeft: 30, marginBottom: 30 }}>
+              {/* Y axis labels */}
+              {[0, 25, 50, 75, 100].map((v, i) => (
+                <div key={i} style={{ position: "absolute", left: -30, bottom: `${v}%`, fontSize: 10, color: "#999", transform: "translateY(50%)" }}>
+                  {v}
+                </div>
+              ))}
+              {/* X axis labels - dùng dữ liệu real từ monthlySeries */}
+              {(monthlySeries.length ? monthlySeries : Array.from({ length: 12 }, (_, i) => ({ month: `2026-${String(i + 1).padStart(2, '0')}` }))).map((row: any, i: number, arr: any[]) => (
+                <div key={i} style={{ position: "absolute", left: `${(i / Math.max(arr.length - 1, 1)) * 100}%`, bottom: -22, fontSize: 10, color: "#999", transform: "translateX(-50%)" }}>
+                  T{Number((row.month || '').slice(5, 7)) || i + 1}
+                </div>
+              ))}
+              {/* Simple SVG line chart */}
               <svg width="100%" height="100%" viewBox="0 0 1100 200" preserveAspectRatio="none" style={{ overflow: "visible" }}>
+                {/* Grid lines */}
                 {[0, 50, 100, 150, 200].map((y, i) => (
                   <line key={i} x1="0" y1={y} x2="1100" y2={y} stroke="#f0f0f0" strokeWidth="1" />
                 ))}
+                {(() => {
+                  const series = monthlySeries.length ? monthlySeries : []
+                  if (!series.length) return null
+                  const maxTotal = Math.max(...series.map(s => s.total), 1)
+                  const maxRecruited = Math.max(...series.map(s => s.recruited), 1)
+                  const maxDischarged = Math.max(...series.map(s => s.discharged), 1)
+                  const yScale = 200
+                  const toPoints = (values: number[], max: number) =>
+                    values.map((v, i) => {
+                      const x = (i / Math.max(series.length - 1, 1)) * 1100
+                      const y = yScale - (v / max) * yScale
+                      return `${x},${y.toFixed(1)}`
+                    }).join(' ')
+                  return (
+                    <>
+                      <polyline fill="none" stroke="#1565c0" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.total), maxTotal)} />
+                      <polyline fill="none" stroke="#2e7d32" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.recruited), maxRecruited)} />
+                      <polyline fill="none" stroke="#ef6c00" strokeWidth="2.5"
+                        points={toPoints(series.map(s => s.discharged), maxDischarged)} />
+                    </>
+                  )
+                })()}
               </svg>
             </div>
+            {/* Legend */}
+            <div style={{ display: "flex", justifyContent: "center", gap: 24, marginTop: 8 }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#1565c0", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Tổng quân nhân</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#2e7d32", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Tuyển mới</span>
+              </div>
+              <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
+                <div style={{ width: 20, height: 3, background: "#ef6c00", borderRadius: 2 }} />
+                <span style={{ fontSize: 12, color: "#666" }}>Xuất ngũ</span>
+              </div>
+            </div>
           </Card>
-        </Col> */}
+        </Col>
 
-        {/* Yêu cầu cấp quyền & Lịch sử thay đổi - Full width */}
-        <Col xs={24} lg={24}>
+        {/* Yêu cầu cấp quyền & Lịch sử thay đổi */}
+        <Col xs={24} lg={10}>
           <Card
             style={{ borderRadius: 10, height: "100%" }}
             styles={{ body: { padding: "0" } }}
@@ -429,7 +499,7 @@ export default function DashboardOverviewPage() {
               </div>
             </div>
             <Spin spinning={loadingActivities}>
-              <div style={{ padding: "12px 16px", height: 350, overflowY: "auto" }}>
+              <div style={{ padding: "12px 16px", height: 280, overflowY: "auto" }}>
                 {/* Tab: Yêu cầu cấp quyền */}
                 {activeActivityTab === "requests" && (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
@@ -479,13 +549,8 @@ export default function DashboardOverviewPage() {
                             </div>
                             <div style={{ flex: 1, minWidth: 0 }}>
                               <div style={{ fontSize: 13, fontWeight: 600, color: "#212121", marginBottom: 2 }}>
-                                {req.RequestByName || req.RequesterName || req.RequestBy}
+                                {req.RequesterName || req.RequestBy}
                               </div>
-                              {req.UnitName && (
-                                <div style={{ fontSize: 11, color: "#999", marginBottom: 2 }}>
-                                  {req.UnitName}
-                                </div>
-                              )}
                               <div style={{ fontSize: 11, color: "#757575" }}>
                                 {req.Title || "Yêu cầu cấp quyền"}
                               </div>
@@ -596,10 +661,11 @@ export default function DashboardOverviewPage() {
         {[
           { icon: <UserAddOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Thêm quân nhân", sub: "Nhập hồ sơ mới", onClick: () => router.push("/soldiers") },
           { icon: <UploadOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Nhập Excel", sub: "Import dữ liệu", onClick: () => router.push("/soldiers") },
+          { icon: <BarChartOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Báo cáo", sub: "Xem báo cáo thống kê", onClick: () => { } },
           { icon: <HistoryOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Lịch sử thay đổi", sub: "Theo dõi thay đổi", onClick: () => router.push("/change-history") },
           { icon: <FolderOutlined style={{ fontSize: 20, color: "#2e5c2e" }} />, label: "Tài liệu quân lực", sub: "Quản lý tài liệu", onClick: () => router.push("/documents") },
         ].map((item, i) => (
-          <Col xs={12} sm={8} md={6} lg={6} key={i}>
+          <Col xs={12} sm={8} md={4} lg={4} key={i} flex={i === 4 ? "auto" : undefined}>
             <Card
               style={{ borderRadius: 10, cursor: "pointer", border: "1px solid #e8e8e8", height: "100%" }}
               styles={{ body: { padding: "14px 16px" } }}

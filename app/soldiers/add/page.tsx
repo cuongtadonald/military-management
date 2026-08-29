@@ -40,6 +40,8 @@ const { Option } = Select
 const STATUS_OPTIONS = [
   { value: "ST001", label: "Đang tại ngũ" },
   { value: "ST002", label: "Điều chuyển" },
+  { value: "ST005", label: "Đang công tác" },
+  { value: "ST006", label: "Đang đi học" },
   { value: "ST003", label: "Nghỉ hưu" },
   { value: "ST004", label: "Xuất ngũ" },
 ]
@@ -57,12 +59,16 @@ const ETHNICITY_OPTIONS = [
 ]
 
 const EDUCATION_OPTIONS = [
+  { value: "6/12", label: "6/12" },
+  { value: "7/12", label: "7/12" },
+  { value: "8/12", label: "8/12" },
   { value: "9/12", label: "9/12" },
   { value: "10/12", label: "10/12" },
   { value: "11/12", label: "11/12" },
   { value: "12/12", label: "12/12" },
-  // { value: "Cao đẳng", label: "Cao đẳng" },
-  // { value: "Đại học", label: "Đại học" },
+  { value: "Trung cấp", label: "Trung cấp" },
+  { value: "Cao đẳng", label: "Cao đẳng" },
+  { value: "Đại học", label: "Đại học" },
   // { value: "Thạc sĩ", label: "Thạc sĩ" },
   // { value: "Tiến sĩ", label: "Tiến sĩ" },
 ]

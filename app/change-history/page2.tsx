@@ -412,11 +412,7 @@ export default function ChangeHistoryPage() {
       width: 220,
       render: (_, record) => {
         const fields = record.FieldDisplayName || record.FieldName
-        // Tránh trùng lặp "Cập nhật Cập nhật..."
-        const displayText = fields?.startsWith("Cập nhật") || fields?.startsWith("Xoá") || fields?.startsWith("Xóa")
-          ? fields
-          : `Cập nhật ${fields}`
-        return <Text style={{ fontSize: 13 }}>{displayText}</Text>
+        return <Text style={{ fontSize: 13 }}>Cập nhật {fields}</Text>
       },
     },
     {

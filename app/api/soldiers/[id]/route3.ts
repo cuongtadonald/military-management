@@ -348,7 +348,9 @@ export async function DELETE(
       description: `Xóa chiến sĩ ${deletedSoldier.FullName || id}`,
       totalSoldier: 1,
       details: [
-        { soldierId: id, fieldName: 'Delete', fieldDisplayName: 'Xoá quân nhân', oldValue: deletedSoldier.FullName, newValue: null },
+        { soldierId: id, fieldName: 'FullName', fieldDisplayName: 'Họ và tên', oldValue: deletedSoldier.FullName, newValue: null },
+        { soldierId: id, fieldName: 'CitizenID', fieldDisplayName: 'CCCD', oldValue: deletedSoldier.CitizenID, newValue: null },
+        { soldierId: id, fieldName: 'UnitID', fieldDisplayName: 'Đơn vị', oldValue: deletedSoldier.UnitID, newValue: null },
       ],
     });
 
